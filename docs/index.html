@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>班级服务管理系统 - 下载</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    min-height: 100vh;
+    color: #fff;
+  }
+  .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+  .hero {
+    text-align: center;
+    padding: 60px 20px 40px;
+  }
+  .logo {
+    width: 100px; height: 100px;
+    margin: 0 auto 24px;
+    border-radius: 24px;
+    background: linear-gradient(135deg, #7c3aed, #2563eb);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 52px;
+    box-shadow: 0 12px 40px rgba(124, 58, 237, 0.4);
+  }
+  h1 { font-size: 36px; margin-bottom: 10px; }
+  .subtitle { color: #a5b4fc; font-size: 16px; margin-bottom: 32px; }
+  .version-tag {
+    display: inline-block;
+    background: rgba(124, 58, 237, 0.2);
+    border: 1px solid rgba(124, 58, 237, 0.5);
+    color: #c4b5fd;
+    padding: 4px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    margin-bottom: 28px;
+  }
+  .download-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, #7c3aed, #2563eb);
+    color: #fff;
+    text-decoration: none;
+    padding: 16px 48px;
+    border-radius: 50px;
+    font-size: 18px;
+    font-weight: bold;
+    box-shadow: 0 8px 24px rgba(124, 58, 237, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .download-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(124, 58, 237, 0.6);
+  }
+  .features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin: 48px 0;
+  }
+  .feature-card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 24px;
+    backdrop-filter: blur(10px);
+  }
+  .feature-card .icon { font-size: 32px; margin-bottom: 12px; }
+  .feature-card h3 { font-size: 16px; margin-bottom: 8px; }
+  .feature-card p { color: #94a3b8; font-size: 13px; line-height: 1.6; }
+  .changelog {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 28px;
+    margin-top: 40px;
+  }
+  .changelog h2 { font-size: 20px; margin-bottom: 20px; }
+  .log-item { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .log-item:last-child { border-bottom: none; margin-bottom: 0; }
+  .log-version { font-weight: bold; color: #c4b5fd; }
+  .log-date { color: #64748b; font-size: 12px; margin-left: 8px; }
+  .log-items { margin-top: 6px; padding-left: 20px; color: #94a3b8; font-size: 14px; line-height: 1.8; }
+  footer {
+    text-align: center;
+    padding: 40px 20px;
+    color: #475569;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="hero">
+    <div class="logo">📚</div>
+    <h1>班级服务管理系统</h1>
+    <p class="subtitle">专为班级管理打造的一站式工具 · Windows 桌面应用</p>
+    <div class="version-tag">最新版本 v3.3.59</div>
+    <br>
+    <a class="download-btn" href="https://github.com/wdwwangdawei/class-service/releases/latest" target="_blank">⬇️ 立即下载</a>
+  </div>
+
+  <div class="features">
+    <div class="feature-card">
+      <div class="icon">📊</div>
+      <h3>班级量化表</h3>
+      <p>自动分组、加减分、排名总结、批量操作、导出 Excel/PDF、趋势图与柱状图。</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">💺</div>
+      <h3>智能排座位</h3>
+      <p>按成绩排或随机排（好坏搭配），支持特殊座位规则、手动互换、打印导出。</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🏆</div>
+      <h3>成绩排名表</h3>
+      <p>自动计算总分名次、同分并列、Excel 导入姓名、打印输出。</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🏅</div>
+      <h3>班级段位</h3>
+      <p>录入考试成绩自动计算星数段位，支持 Excel 批量导入和打印。</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">💾</div>
+      <h3>数据备份</h3>
+      <p>本地数据安全保存，支持备份恢复与云同步，换机器不丢数据。</p>
+    </div>
+    <div class="feature-card">
+      <div class="icon">🔄</div>
+      <h3>自动更新</h3>
+      <p>启动自动检测新版本，镜像加速下载，一键安装重启。</p>
+    </div>
+  </div>
+
+  <div class="changelog">
+    <h2>📝 更新日志</h2>
+    <div class="log-item">
+      <span class="log-version">v3.3.59</span><span class="log-date">2026-10-01</span>
+      <ul class="log-items"><li>优化功能体验</li></ul>
+    </div>
+    <div class="log-item">
+      <span class="log-version">v3.3.58</span><span class="log-date">2026-10-01</span>
+      <ul class="log-items"><li>修复随机排座模式无效的问题</li></ul>
+    </div>
+    <div class="log-item">
+      <span class="log-version">v3.3.56</span><span class="log-date">2026-10-01</span>
+      <ul class="log-items"><li>班级段位新增打印功能</li></ul>
+    </div>
+    <div class="log-item">
+      <span class="log-version">v3.3.55</span><span class="log-date">2026-10-01</span>
+      <ul class="log-items"><li>优化使用向导内容</li></ul>
+    </div>
+    <div class="log-item">
+      <span class="log-version">v3.3.53</span><span class="log-date">2026-10-01</span>
+      <ul class="log-items"><li>更新界面全新设计</li></ul>
+    </div>
+  </div>
+</div>
+<footer>
+  © 2026 班级服务管理系统 · 本软件为免费软件，仅供个人学习、班级管理使用
+</footer>
+</body>
+</html>
