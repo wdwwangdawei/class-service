@@ -1,0 +1,17 @@
+{
+    "name":  "class-service-manager",
+    "version":  "3.5.0",
+    "description":  "班级服务管理系统 - Electron 桌面版",
+    "main":  "main.js",
+    "scripts":  {
+                    "start":  "electron .",
+                    "build":  "electron-packager . \"班级服务管理系统\" --platform=win32 --arch=x64 --out=dist --overwrite --icon=assets/app_icon.ico --asar"
+                },
+    "devDependencies":  {
+                            "electron":  "^32.1.2",
+                            "electron-packager":  "^17.1.2"
+                        },
+    "dependencies":  {
+                         "xlsx":  "^0.18.5"
+                     }
+}
