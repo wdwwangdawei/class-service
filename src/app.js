@@ -485,26 +485,6 @@ window.app = {
     } catch(e) {}
   },
 
-  // 首页「检查更新」：查询 GitHub 最新版本
-  async checkUpdateNow() {
-    try {
-      const res = await window.electronAPI.checkUpdate();
-      if (res && res.hasUpdate && res.downloadUrl) {
-        const cur = document.getElementById('remote-update-cur');
-        const ver = document.getElementById('remote-update-ver');
-        if (cur) cur.textContent = res.currentVersion || '';
-        if (ver) ver.textContent = res.latestVersion || '';
-        document.getElementById('remote-update-modal').classList.remove('hidden');
-      } else if (res && res.error) {
-        alert('检查更新失败：' + res.error);
-      } else {
-        alert('当前已是最新版本');
-      }
-    } catch (e) {
-      alert('检查更新失败：' + (e && e.message ? e.message : e));
-    }
-  },
-
   closeUpdateModal() {
     document.getElementById('update-success').classList.add('hidden');
   },
@@ -529,6 +509,7 @@ window.app = {
   showRemoteUpdateDialog(info) {
     const modal = document.getElementById('remote-update-modal');
     if (!modal) return;
+    this._pendingUpdate = info;
     const verEl = document.getElementById('remote-update-ver');
     if (verEl) verEl.textContent = info.latestVersion || '';
     const curEl = document.getElementById('remote-update-cur');
@@ -538,9 +519,20 @@ window.app = {
 
   async downloadAndInstallUpdate() {
     try {
-      const info = await window.electronAPI.checkUpdate();
-      if (!info.hasUpdate || !info.downloadUrl) {
-        alert('没有可用的更新');
+      let info = this._pendingUpdate;
+      if (!info || !info.downloadUrl) {
+        info = await window.electronAPI.checkUpdate();
+      }
+      if (info && info.error) {
+        alert('检查更新失败：' + info.error);
+        return;
+      }
+      if (!info || !info.hasUpdate) {
+        alert('当前已是最新版本（v' + ((info && info.currentVersion) || this._appVersion || '') + '）');
+        return;
+      }
+      if (!info.downloadUrl) {
+        alert('发现新版本 v' + info.latestVersion + '，但更新安装包暂未就绪。\n请稍后重试，或前往 GitHub Releases 页面手动下载。');
         return;
       }
       document.getElementById('remote-update-modal').classList.add('hidden');

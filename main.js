@@ -294,7 +294,10 @@ async function checkForUpdate() {
     const latestVersion = latestTag.replace(/^v/, '');
     const currentVersion = app.getVersion();
     const hasUpdate = compareVersion(latestVersion, currentVersion) > 0;
-    const asset = (data.assets || []).find(a => a.name === UPDATE_ASSET_NAME);
+    // 优先精确匹配 app.asar；兼容 Release 资产带版本号的命名（如 xxx-v3.5.2.asar）
+    const assets = data.assets || [];
+    const asset = assets.find(a => a.name === UPDATE_ASSET_NAME) ||
+                  assets.find(a => /\.asar$/i.test(a.name || ''));
     return {
       hasUpdate,
       latestVersion,
@@ -694,6 +697,10 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.5.2': { date: '2026-11-15', items: [
+        '修复点击「立即更新」后误报「没有可用的更新」的问题',
+        '自动更新兼容不同命名的更新包，下载更可靠'
+      ] },
       '3.5.1': { date: '2026-11-15', items: [
         '启动后自动全屏显示',
         '首页问候语更新，并随机显示一句哲理短句',
