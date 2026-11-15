@@ -20,6 +20,26 @@
     <div class="splash-copyright">请勿侵权，侵权必究，拒绝盗版</div>
   </div>
 
+  <!-- 灵动岛 -->
+  <div id="island" class="island">
+    <div class="island-head" onclick="app.toggleIsland()">
+      <span class="island-live"></span>
+      <span class="island-clock" id="island-clock">--:--</span>
+      <span class="island-sub" id="island-sub">正在加载…</span>
+      <svg class="island-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+    </div>
+    <div class="island-panel" id="island-panel">
+      <div class="island-date" id="island-date"></div>
+      <div class="island-rows" id="island-rows"></div>
+      <div class="island-actions">
+        <button type="button" onclick="app.showHomeworkPage()">作业登记</button>
+        <button type="button" onclick="app.showDutyPage()">值日表</button>
+        <button type="button" onclick="app.showMainMenu()">回到首页</button>
+        <button type="button" class="island-refresh" onclick="app.refreshIsland(true)">刷新</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 主容器 -->
   <div id="app" class="app hidden">
     <!-- 品牌栏 -->
@@ -239,7 +259,7 @@
                       <div class="status-row">
                         <div class="status-text">
                           <div class="status-name">当前版本</div>
-                          <div class="status-sub" id="home-version">v3.6.3</div>
+                          <div class="status-sub" id="home-version">v3.7.0</div>
                         </div>
                         <button class="pill pill-link" onclick="app.checkUpdateNow()">检查更新</button>
                       </div>
@@ -279,7 +299,7 @@
                   <span class="sb-sep">·</span>共 <span id="home-status-tables">0</span> 个表格
                   <span class="sb-sep">·</span><span id="home-status-students">0</span> 名学生
                 </div>
-                <div class="sb-right"><span id="home-status-version" class="version-info">v3.6.3</span></div>
+                <div class="sb-right"><span id="home-status-version" class="version-info">v3.7.0</span></div>
               </div>
             </div>
           </section>
@@ -613,7 +633,7 @@
                 </div>
                 <div class="about-info">
                   <div class="about-row"><span class="about-label">制作者</span><span>高二3班 王大玮</span></div>
-                  <div class="about-row"><span class="about-label">当前版本</span><span id="about-version">3.6.3</span></div>
+                  <div class="about-row"><span class="about-label">当前版本</span><span id="about-version">3.7.0</span></div>
                   <div class="about-copyright">版权由制作者所有<br>请勿侵权，侵权必究，拒绝盗版</div>
                 </div>
                 <div class="about-changelog-title">历史更新内容</div>
@@ -861,7 +881,7 @@
           <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <h2>更新成功！</h2>
-        <p class="update-msg">已更新到 <span id="update-ver">v3.6.3</span></p>
+        <p class="update-msg">已更新到 <span id="update-ver">v3.7.0</span></p>
         <div class="update-changes" id="update-changes"></div>
         <p class="update-sub">感谢使用班级服务管理系统</p>
         <button class="btn btn-primary update-btn-glow" onclick="app.closeUpdateModal()">开始使用</button>
@@ -876,9 +896,9 @@
         </div>
         <h2>发现新版本</h2>
         <div class="version-compare">
-          <div class="ver-box ver-old"><span class="ver-label">当前</span><span class="ver-num">v<span id="remote-update-cur">3.6.3</span></span></div>
+          <div class="ver-box ver-old"><span class="ver-label">当前</span><span class="ver-num">v<span id="remote-update-cur">3.7.0</span></span></div>
           <div class="ver-arrow">→</div>
-          <div class="ver-box ver-new"><span class="ver-label">最新</span><span class="ver-num">v<span id="remote-update-ver">3.6.3</span></span></div>
+          <div class="ver-box ver-new"><span class="ver-label">最新</span><span class="ver-num">v<span id="remote-update-ver">3.7.0</span></span></div>
         </div>
         <p style="color:var(--text-3);font-size:13px;margin:14px 0 0;">是否立即下载并安装更新？</p>
         <div style="display:flex;gap:8px;margin-top:14px;">

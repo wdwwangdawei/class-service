@@ -602,12 +602,14 @@ window.app = {
     } else {
       this.isLocked = false;
       document.body.classList.remove('app-locked');
+      this.initIsland();
       this.showMainMenu();
     }
   },
 
   lockApp() {
     this.isLocked = true;
+    this.toggleIsland(false);
     document.body.classList.add('app-locked');
     this.showSection('password-lock');
     const input = document.getElementById('lock-password-input');
@@ -632,6 +634,7 @@ window.app = {
         input.value = '';
         this.isLocked = false;
         document.body.classList.remove('app-locked');
+        this.initIsland();
         this.showMainMenu();
       } else {
         error.textContent = '密码错误，请重试';
@@ -5317,6 +5320,169 @@ window.app = {
   // =========================================================================
   // 通用提示
   // =========================================================================
+  // =========================================================================
+  // 灵动岛
+  // =========================================================================
+  islandOpen: false,
+  _islandTimer: null,
+  _islandAlertTimer: null,
+  _islandData: null,
+
+  initIsland() {
+    var el = document.getElementById('island');
+    if (!el) return;
+    var self = this;
+    this.updateIslandClock();
+    if (!this._islandClockTimer) {
+      this._islandClockTimer = setInterval(function () { self.updateIslandClock(); }, 1000);
+    }
+    if (!this._islandDataTimer) {
+      this._islandDataTimer = setInterval(function () { self.refreshIsland(); }, 30000);
+    }
+    if (!this._islandBound) {
+      this._islandBound = true;
+      document.addEventListener('pointerdown', function (e) {
+        if (!self.islandOpen) return;
+        var box = document.getElementById('island');
+        if (box && !box.contains(e.target)) self.toggleIsland(false);
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && self.islandOpen) self.toggleIsland(false);
+      });
+    }
+    el.classList.add('show');
+    this.refreshIsland();
+  },
+
+  updateIslandClock() {
+    var el = document.getElementById('island-clock');
+    if (!el) return;
+    var d = new Date();
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    el.textContent = p(d.getHours()) + ':' + p(d.getMinutes());
+  },
+
+  islandWeekName(d) {
+    return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
+  },
+
+  islandToday() {
+    var d = new Date();
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  },
+
+  async refreshIsland(manual) {
+    var now = new Date();
+    var day = this.islandWeekName(now);
+    var data = { hw: '今日暂无作业登记', duty: day + '暂无值日安排', score: '暂无量化积分' };
+    var short = [];
+    try {
+      var hw = await window.electronAPI.homeworkGet();
+      var recs = (hw && hw.records) || [];
+      var today = this.islandToday();
+      var todays = recs.filter(function (r) { return String(r.date || '').slice(0, 10) === today; });
+      if (todays.length) {
+        var total = 0;
+        var parts = todays.map(function (r) {
+          var n = (r.missing || []).length;
+          total += n;
+          return (r.subject || '未命名') + (n ? ' ' + n + ' 人未交' : ' 已交齐');
+        });
+        data.hw = parts.join(' · ');
+        short.push(total ? '作业 ' + total + ' 人未交' : '作业已交齐');
+      } else {
+        short.push('今日无作业');
+      }
+    } catch (e) { short.push('作业读取失败'); }
+    try {
+      var duty = await window.electronAPI.dutyGet();
+      var map = (duty && duty.days && duty.days[day]) || null;
+      var names = [];
+      if (map) {
+        Object.keys(map).forEach(function (t) {
+          (map[t] || []).forEach(function (n) { if (n && names.indexOf(n) < 0) names.push(n); });
+        });
+      }
+      if (!map && (day === '周六' || day === '周日')) {
+        data.duty = '周末休息，无需值日';
+        short.push('周末休息');
+      } else if (names.length) {
+        data.duty = day + '：' + names.slice(0, 8).join('、') + (names.length > 8 ? ' 等 ' + names.length + ' 人' : '');
+        short.push('值日 ' + names.length + ' 人');
+      } else {
+        short.push('值日未排班');
+      }
+    } catch (e) { short.push('值日读取失败'); }
+    try {
+      var tables = await window.electronAPI.loadTables();
+      var rankings = (tables || []).filter(function (t) { return (t.type || 'ranking') === 'ranking'; });
+      var latest = null;
+      for (var i = rankings.length - 1; i >= 0; i--) {
+        if (Object.keys(rankings[i].group_scores || {}).length) { latest = rankings[i]; break; }
+      }
+      if (latest) {
+        var gs = Object.keys(latest.group_scores || {}).map(function (g) {
+          return { group: Number(g), score: Number(latest.group_scores[g]) || 0 };
+        });
+        gs.sort(function (a, b) { return b.score - a.score; });
+        if (gs.length) {
+          data.score = '第 ' + gs[0].group + ' 组领先 · ' + (Math.round(gs[0].score * 100) / 100) + ' 分';
+          short.push('第' + gs[0].group + '组第一');
+        }
+      }
+    } catch (e) { short.push('积分读取失败'); }
+    this._islandData = data;
+    var sub = document.getElementById('island-sub');
+    if (sub && !document.getElementById('island').classList.contains('alert')) {
+      sub.textContent = short.join(' · ');
+    }
+    this.renderIslandPanel();
+    if (manual) this.islandAlert('已刷新 · ' + short.join(' · '), 'info', 2000);
+  },
+
+  renderIslandPanel() {
+    var d = this._islandData || {};
+    var now = new Date();
+    var dateEl = document.getElementById('island-date');
+    if (dateEl) dateEl.textContent = (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + this.islandWeekName(now);
+    var box = document.getElementById('island-rows');
+    if (!box) return;
+    box.innerHTML =
+      '<div class="island-row"><span class="island-row-ico ico-amber">作</span><div class="island-row-text"><b>今日作业</b><span>' + escapeHtml(d.hw || '') + '</span></div></div>' +
+      '<div class="island-row"><span class="island-row-ico ico-green">值</span><div class="island-row-text"><b>值日安排</b><span>' + escapeHtml(d.duty || '') + '</span></div></div>' +
+      '<div class="island-row"><span class="island-row-ico ico-blue">分</span><div class="island-row-text"><b>积分榜首</b><span>' + escapeHtml(d.score || '') + '</span></div></div>';
+  },
+
+  toggleIsland(force) {
+    var box = document.getElementById('island');
+    if (!box) return;
+    var next = typeof force === 'boolean' ? force : !this.islandOpen;
+    this.islandOpen = next;
+    box.classList.toggle('open', next);
+    clearTimeout(this._islandTimer);
+    if (next) {
+      this.renderIslandPanel();
+      this.refreshIsland();
+      var self = this;
+      this._islandTimer = setTimeout(function () { self.toggleIsland(false); }, 8000);
+    }
+  },
+
+  islandAlert(text, type, ms) {
+    var box = document.getElementById('island');
+    var sub = document.getElementById('island-sub');
+    if (!box || !sub) return;
+    var self = this;
+    box.classList.add('show', 'alert');
+    sub.textContent = text;
+    clearTimeout(this._islandAlertTimer);
+    this._islandAlertTimer = setTimeout(function () {
+      box.classList.remove('alert');
+      self.refreshIsland();
+    }, ms || 2600);
+  },
+
   showToast(message, type) {
     var old = document.getElementById('app-toast');
     if (old) old.remove();
@@ -5330,6 +5496,9 @@ window.app = {
       div.classList.remove('show');
       setTimeout(function () { if (div.parentNode) div.remove(); }, 220);
     }, 2200);
+    if (this._islandData && message && message.length <= 40) {
+      this.islandAlert(message, type || 'info', 2400);
+    }
   },
 
   // 将 ISO 时间转为本机时区的 YYYY-MM-DD HH:mm
