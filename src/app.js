@@ -1962,12 +1962,12 @@ window.app = {
 
   // ===== 风格切换 =====
   themePresets: {
-    mist:     { name: '晨雾蓝', bg: 'linear-gradient(135deg,#eef4ff 0%,#dbe7ff 100%)', primary: '#2563eb', preview: 'linear-gradient(135deg,#e8f0ff,#c9dcff)' },
-    mint:     { name: '薄荷青', bg: 'linear-gradient(135deg,#effaf5 0%,#d5f0e3 100%)', primary: '#0f8a6c', preview: 'linear-gradient(135deg,#e5f8ef,#c4ead7)' },
-    sunset:   { name: '暖阳橙', bg: 'linear-gradient(135deg,#fff7ed 0%,#ffe6c7 100%)', primary: '#d97706', preview: 'linear-gradient(135deg,#fff1df,#ffddb0)' },
-    sakura:   { name: '樱花粉', bg: 'linear-gradient(135deg,#fff1f6 0%,#ffdcea 100%)', primary: '#db2777', preview: 'linear-gradient(135deg,#ffe8f1,#ffd0e2)' },
-    graphite: { name: '墨玉灰', bg: 'linear-gradient(135deg,#f4f6f9 0%,#e0e6ee 100%)', primary: '#475569', preview: 'linear-gradient(135deg,#edf1f5,#d8e0e9)' },
-    forest:   { name: '森野绿', bg: 'linear-gradient(135deg,#f1f8f2 0%,#d8eddc 100%)', primary: '#15803d', preview: 'linear-gradient(135deg,#e8f6eb,#cde9d3)' }
+    mist:     { name: '晨雾蓝', bg: 'linear-gradient(135deg,#eef4ff 0%,#dbe7ff 100%)', primary: '#2563eb', hover: '#1e4fd8', soft: '#e9f0ff', soft2: '#d4e2ff', bgSolid: '#eef4ff', surface2: '#f7faff', preview: 'linear-gradient(135deg,#e8f0ff,#c9dcff)' },
+    mint:     { name: '薄荷青', bg: 'linear-gradient(135deg,#effaf5 0%,#d5f0e3 100%)', primary: '#0f8a6c', hover: '#0b7157', soft: '#e4f7f0', soft2: '#c9eddd', bgSolid: '#eaf8f2', surface2: '#f5fcf9', preview: 'linear-gradient(135deg,#e5f8ef,#c4ead7)' },
+    sunset:   { name: '暖阳橙', bg: 'linear-gradient(135deg,#fff7ed 0%,#ffe6c7 100%)', primary: '#d97706', hover: '#b45c05', soft: '#fff3e2', soft2: '#ffe4c2', bgSolid: '#fff6ea', surface2: '#fffbf4', preview: 'linear-gradient(135deg,#fff1df,#ffddb0)' },
+    sakura:   { name: '樱花粉', bg: 'linear-gradient(135deg,#fff1f6 0%,#ffdcea 100%)', primary: '#db2777', hover: '#b81d61', soft: '#ffe9f3', soft2: '#ffd3e6', bgSolid: '#fff1f7', surface2: '#fff7fb', preview: 'linear-gradient(135deg,#ffe8f1,#ffd0e2)' },
+    graphite: { name: '墨玉灰', bg: 'linear-gradient(135deg,#f4f6f9 0%,#e0e6ee 100%)', primary: '#475569', hover: '#364152', soft: '#eef1f6', soft2: '#dee5ee', bgSolid: '#f2f5f9', surface2: '#f8fafc', preview: 'linear-gradient(135deg,#edf1f5,#d8e0e9)' },
+    forest:   { name: '森野绿', bg: 'linear-gradient(135deg,#f1f8f2 0%,#d8eddc 100%)', primary: '#15803d', hover: '#116532', soft: '#e6f6ea', soft2: '#d0ecd8', bgSolid: '#eef8f1', surface2: '#f6fcf8', preview: 'linear-gradient(135deg,#e8f6eb,#cde9d3)' }
   },
   themeOrder: ['mist', 'mint', 'sunset', 'sakura', 'graphite', 'forest'],
 
@@ -2010,13 +2010,27 @@ window.app = {
     this.updateNav('password-manage');
   },
 
+  applyThemeVars() {
+    const presets = this.themePresets || {};
+    const th = presets[this.themeSkin] || presets.mist;
+    if (!th) return;
+    const r = document.documentElement.style;
+    r.setProperty('--primary', th.primary);
+    r.setProperty('--primary-hover', th.hover || th.primary);
+    r.setProperty('--primary-soft', th.soft || '#ebf3fc');
+    r.setProperty('--primary-soft-2', th.soft2 || '#d7e8fa');
+    r.setProperty('--primary-color', th.primary);
+    r.setProperty('--primary-light', th.hover || th.primary);
+    r.setProperty('--accent', th.primary);
+    if (th.bgSolid) r.setProperty('--bg', th.bgSolid);
+    if (th.surface2) r.setProperty('--surface-2', th.surface2);
+  },
+
   applyTheme(id, silent) {
     const presets = this.themePresets || {};
     const first = (this.themeOrder && this.themeOrder[0]) || 'mist';
     const key = presets[id] ? id : first;
     const th = presets[key] || { name: '晨雾蓝', bg: '#f3f3f3', primary: '#0f6cbd' };
-    document.body.style.background = th.bg;
-    document.documentElement.style.setProperty('--primary-color', th.primary);
     this.themeSkin = key;
     this.applyDisplayTheme();
     this.saveConfig();
@@ -2495,6 +2509,7 @@ window.app = {
       document.body.style.background = '#c7edcc';
     } else {
       document.body.style.color = '';
+      this.applyThemeVars();
       const presets = this.themePresets || {};
       const th = presets[this.themeSkin] || presets[(this.themeOrder && this.themeOrder[0]) || 'mist'];
       document.body.style.background = th ? th.bg : '#f3f3f3';
