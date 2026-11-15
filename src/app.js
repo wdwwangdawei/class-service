@@ -21,20 +21,22 @@ window.app = {
   editingTable: null,
   isEditing: false,
 
-  // 首页哲理短句（每次启动随机取一条）
+  // 首页诗意短句（每次启动随机取一条）
   homeQuotes: [
-    '教育是唤醒，而不是灌输。',
-    '种一棵树最好的时间是十年前，其次是现在。',
-    '把每一件简单的事做好，就是不简单。',
-    '星光不问赶路人，时光不负有心人。',
-    '教育的本质，是一棵树摇动另一棵树。',
-    '耐心，是最温柔的力量。',
-    '今天多一分用心，明天多一分从容。',
-    '成长从来不是一蹴而就，而是日积月累。',
-    '让每个孩子都被看见，就是教育最亮的光。',
-    '慢慢来，比较快。',
-    '认真对待每一件小事，时间会给你答案。',
-    '好的教育，是陪孩子一起成为更好的自己。'
+    '山有木兮木有枝，心悦君兮君不知。',
+    '愿我如星君如月，夜夜流光相皎洁。',
+    '海上月是天上月，眼前人是心上人。',
+    '晓看天色暮看云，行也思君，坐也思君。',
+    '银河揉碎了星光，一半落进梦里，一半落进你眼里。',
+    '晚风轻踩着云朵，月亮在贩售温柔。',
+    '你是落日弥漫的橘，也是天边透亮的星。',
+    '山河远阔，人间烟火，无一是你，无一不是你。',
+    '我攒了一整个宇宙的温柔，只为在人间遇见你。',
+    '云朵偷喝了屋顶的酒，于是脸红成了晚霞。',
+    '星星是银河写给月亮的情书。',
+    '落日归山海，烟火向星辰，所愿皆成真。',
+    '想和你一起，把世间所有的月亮都看一遍。',
+    '风很温柔，花很浪漫，而你刚刚好。'
   ],
 
   init() {
@@ -121,7 +123,7 @@ window.app = {
       this.tablesLocked = config.tablesLocked === true;
       this.autoSave = config.autoSave !== false;
       this.autoLock = config.autoLock === true;
-      this.themeSkin = config.themeSkin || 'mist';
+      this.themeSkin = config.themeSkin || 'default';
       this.displayTheme = config.displayTheme || 'light';
     } catch(e) {
       this.soundEnabled = true; this.soundVolume = 50;
@@ -129,7 +131,7 @@ window.app = {
       this.bgmEnabled = false; this.bgmVolume = 30;
     }
     this.applyFont();
-    this.applyTheme(this.themeSkin || 'mist', true);
+    this.applyTheme(this.themeSkin || 'default', true);
     if (this.bgmEnabled) this.startBgm();
   },
 
@@ -137,7 +139,7 @@ window.app = {
   language: 'zh',
   fontFamily: 'Microsoft YaHei',
   bgmEnabled: false,
-  bgmVolume: 30, themeSkin: 'mist', displayTheme: 'light', passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false,
+  bgmVolume: 30, themeSkin: 'default', displayTheme: 'light', passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false,
   bgmAudio: null,
   selectedLang: 'zh',
   selectedFont: 'Microsoft YaHei',
@@ -595,7 +597,7 @@ window.app = {
 
   async checkPasswordNeeded() {
     const config = await window.electronAPI.getConfig();
-    if (config.passwordEnabled) {
+    if (config.passwordEnabled && config.passwordSet) {
       this.showSection('password-lock');
       const input = document.getElementById('lock-password-input');
       if (input) {
@@ -713,17 +715,27 @@ window.app = {
     const icon = document.getElementById('toggle-pwd-icon');
     const title = document.getElementById('toggle-pwd-title');
     const desc = document.getElementById('toggle-pwd-desc');
-    if (config.passwordEnabled) {
-      box.textContent = '当前状态：密码保护已开启';
-      box.className = 'password-status-box status-on';
-      if (icon) icon.textContent = '🔓';
-      if (desc) desc.textContent = '点击关闭密码保护';
-    } else {
-      box.textContent = '当前状态：密码保护已关闭';
-      box.className = 'password-status-box status-off';
-      if (icon) icon.textContent = '🔒';
-      if (desc) desc.textContent = '点击开启密码保护';
+    const fields = document.getElementById('disable-pwd-fields');
+    const enableBtn = document.getElementById('enable-pwd-btn');
+    const input = document.getElementById('disable-password-input');
+    const label = fields && fields.querySelector('label');
+    const closeBtn = fields && fields.querySelector('.btn-danger');
+    const enabled = config.passwordEnabled === true && config.passwordSet === true;
+    if (box) {
+      box.textContent = enabled ? '当前状态：密码保护已开启' : (config.passwordSet ? '当前状态：密码保护已关闭' : '当前状态：尚未设置启动密码');
+      box.className = 'password-status-box ' + (enabled ? 'status-on' : 'status-off');
     }
+    if (icon) icon.textContent = enabled ? '🔓' : '🔒';
+    if (title) title.textContent = '密码保护';
+    if (desc) {
+      desc.textContent = enabled ? '关闭后，启动软件时将不再验证密码'
+        : (config.passwordSet ? '点击下方按钮开启启动密码保护' : '请先在「修改密码」中设置 4-6 位数字密码');
+    }
+    if (fields) fields.style.display = 'block';
+    if (enableBtn) enableBtn.style.display = enabled ? 'none' : 'block';
+    if (input) input.style.display = enabled ? 'block' : 'none';
+    if (label) label.style.display = enabled ? 'block' : 'none';
+    if (closeBtn) closeBtn.style.display = enabled ? 'block' : 'none';
   },
 
   async enablePassword() {
@@ -735,7 +747,9 @@ window.app = {
     }
     const result = await window.electronAPI.togglePassword({ action: 'enable' });
     if (result.success) {
-      this.updatePasswordStatus();
+      await this.updatePasswordStatus();
+      alert('密码保护已开启，下次启动需要输入密码');
+      this.backToSettings();
     } else {
       alert(result.error || '开启失败');
     }
@@ -966,9 +980,25 @@ window.app = {
     try {
       var result = await window.electronAPI.changePassword({ oldPassword: oldPwd, newPassword: newPwd });
       if (result && result.success) {
+        var wasEnabled = false;
+        try {
+          var cfg = await window.electronAPI.getConfig();
+          wasEnabled = cfg.passwordEnabled === true && cfg.passwordSet === true;
+        } catch (e) { /* ignore */ }
         alert('密码修改成功！');
         oldInput.value = ''; newInput.value = ''; confirmInput.value = '';
         document.getElementById('change-password-form').classList.add('hidden');
+        if (!wasEnabled) {
+          var choice = await window.electronAPI.confirmBox({
+            title: '密码已保存',
+            message: '是否立即开启密码保护？开启后每次启动软件都需要输入密码。',
+            buttons: ['立即开启', '暂不开启'],
+            cancelId: 1
+          });
+          if (choice === 0) await window.electronAPI.togglePassword({ action: 'enable' });
+          await this.updatePasswordStatus();
+          this.backToSettings();
+        }
       } else {
         alert((result && result.error) || '修改失败');
         oldInput.value = '';
@@ -992,8 +1022,8 @@ window.app = {
       if (result && result.success) {
         alert('密码保护已关闭');
         pwdInput.value = '';
-        document.getElementById('disable-password-form').classList.add('hidden');
-        this.updatePasswordStatus();
+        await this.updatePasswordStatus();
+        this.backToSettings();
       } else {
         alert((result && result.error) || '操作失败');
         pwdInput.value = '';
@@ -1962,6 +1992,7 @@ window.app = {
 
   // ===== 风格切换 =====
   themePresets: {
+    default:  { name: '默认', bg: 'linear-gradient(135deg,#f7f8fa 0%,#eceff3 100%)', primary: '#0f6cbd', hover: '#115ea3', soft: '#ebf3fc', soft2: '#d7e8fa', bgSolid: '#f3f3f3', surface2: '#fafafa', preview: 'linear-gradient(135deg,#f5f7fa,#e4e9ef)' },
     mist:     { name: '晨雾蓝', bg: 'linear-gradient(135deg,#eef4ff 0%,#dbe7ff 100%)', primary: '#2563eb', hover: '#1e4fd8', soft: '#e9f0ff', soft2: '#d4e2ff', bgSolid: '#eef4ff', surface2: '#f7faff', preview: 'linear-gradient(135deg,#e8f0ff,#c9dcff)' },
     mint:     { name: '薄荷青', bg: 'linear-gradient(135deg,#effaf5 0%,#d5f0e3 100%)', primary: '#0f8a6c', hover: '#0b7157', soft: '#e4f7f0', soft2: '#c9eddd', bgSolid: '#eaf8f2', surface2: '#f5fcf9', preview: 'linear-gradient(135deg,#e5f8ef,#c4ead7)' },
     sunset:   { name: '暖阳橙', bg: 'linear-gradient(135deg,#fff7ed 0%,#ffe6c7 100%)', primary: '#d97706', hover: '#b45c05', soft: '#fff3e2', soft2: '#ffe4c2', bgSolid: '#fff6ea', surface2: '#fffbf4', preview: 'linear-gradient(135deg,#fff1df,#ffddb0)' },
@@ -1969,7 +2000,7 @@ window.app = {
     graphite: { name: '墨玉灰', bg: 'linear-gradient(135deg,#f4f6f9 0%,#e0e6ee 100%)', primary: '#475569', hover: '#364152', soft: '#eef1f6', soft2: '#dee5ee', bgSolid: '#f2f5f9', surface2: '#f8fafc', preview: 'linear-gradient(135deg,#edf1f5,#d8e0e9)' },
     forest:   { name: '森野绿', bg: 'linear-gradient(135deg,#f1f8f2 0%,#d8eddc 100%)', primary: '#15803d', hover: '#116532', soft: '#e6f6ea', soft2: '#d0ecd8', bgSolid: '#eef8f1', surface2: '#f6fcf8', preview: 'linear-gradient(135deg,#e8f6eb,#cde9d3)' }
   },
-  themeOrder: ['mist', 'mint', 'sunset', 'sakura', 'graphite', 'forest'],
+  themeOrder: ['default', 'mist', 'mint', 'sunset', 'sakura', 'graphite', 'forest'],
 
   showThemeStore() {
     var _m2 = document.getElementById('settings-menu'); if(_m2)_m2.classList.add('hidden');
@@ -2012,7 +2043,7 @@ window.app = {
 
   applyThemeVars() {
     const presets = this.themePresets || {};
-    const th = presets[this.themeSkin] || presets.mist;
+    const th = presets[this.themeSkin] || presets.default;
     if (!th) return;
     const r = document.documentElement.style;
     r.setProperty('--primary', th.primary);
@@ -2028,9 +2059,9 @@ window.app = {
 
   applyTheme(id, silent) {
     const presets = this.themePresets || {};
-    const first = (this.themeOrder && this.themeOrder[0]) || 'mist';
+    const first = (this.themeOrder && this.themeOrder[0]) || 'default';
     const key = presets[id] ? id : first;
-    const th = presets[key] || { name: '晨雾蓝', bg: '#f3f3f3', primary: '#0f6cbd' };
+    const th = presets[key] || { name: '默认', bg: '#f3f3f3', primary: '#0f6cbd' };
     this.themeSkin = key;
     this.applyDisplayTheme();
     this.saveConfig();
@@ -2511,7 +2542,7 @@ window.app = {
       document.body.style.color = '';
       this.applyThemeVars();
       const presets = this.themePresets || {};
-      const th = presets[this.themeSkin] || presets[(this.themeOrder && this.themeOrder[0]) || 'mist'];
+      const th = presets[this.themeSkin] || presets[(this.themeOrder && this.themeOrder[0]) || 'default'];
       document.body.style.background = th ? th.bg : '#f3f3f3';
     }
   },
@@ -2559,7 +2590,7 @@ window.app = {
         tablesLocked: this.tablesLocked === true,
         autoSave: this.autoSave !== false,
         autoLock: this.autoLock === true,
-        themeSkin: this.themeSkin || 'mist',
+        themeSkin: this.themeSkin || 'default',
         displayTheme: this.displayTheme || 'light'
       });
     } catch(e) { console.error('saveConfig failed', e); }
@@ -5705,6 +5736,12 @@ window.app = {
       var p = function (n) { return n < 10 ? '0' + n : '' + n; };
       dateEl.value = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
     }
+    // 清除上次未保存的选择，避免再次进入时残留未交标记
+    this.hwMissing = [];
+    var subj = document.getElementById('hw-subject');
+    var cont = document.getElementById('hw-content');
+    if (subj) subj.value = '';
+    if (cont) cont.value = '';
     await this.renderHomeworkStudents();
     await this.renderHomeworkRecords();
   },
@@ -5780,13 +5817,28 @@ window.app = {
     if (!subject) { this.showToast('请填写科目', 'warn'); return; }
     if (!date) { this.showToast('请选择日期', 'warn'); return; }
     var total = (this.hwStudentNames || []).length;
+    if (!total) { this.showToast('学生名单为空，请先在「学生名单」中添加学生', 'warn'); return; }
     var missing = (this.hwMissing || []).filter(function (n) {
       return (this.hwStudentNames || []).indexOf(n) >= 0;
     }, this);
+    var existing = (this.hwRecords || []).filter(function (r) {
+      return r.date === date && r.subject === subject;
+    })[0];
+    if (existing) {
+      var cf = await window.electronAPI.confirmBox({
+        title: '记录已存在',
+        message: '该日期「' + subject + '」已有作业登记，是否覆盖更新？',
+        buttons: ['覆盖更新', '取消'],
+        cancelId: 1
+      });
+      if (cf !== 0) return;
+    }
     try {
-      var res = await window.electronAPI.homeworkSave({ date: date, subject: subject, content: content, missing: missing, total: total });
+      var payload = { date: date, subject: subject, content: content, missing: missing, total: total };
+      if (existing) { payload.id = existing.id; payload.created_at = existing.created_at; }
+      var res = await window.electronAPI.homeworkSave(payload);
       if (!res || !res.success) { this.showToast('保存失败：' + ((res && res.error) || '未知错误'), 'error'); return; }
-      this.showToast('已登记「' + subject + '」，未交 ' + missing.length + ' 人', 'ok');
+      this.showToast((existing ? '已更新「' : '已登记「') + subject + '」，未交 ' + missing.length + ' 人', 'ok');
       this.resetHomeworkForm();
       await this.renderHomeworkRecords(res.records);
       this.addLog('作业登记', subject + (content ? ' ' + content : '') + '，未交 ' + missing.length + ' 人');

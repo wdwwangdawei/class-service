@@ -83,15 +83,18 @@ function loadSecrets() {
 function loadConfig() {
   ensureDataDir();
   if (!fs.existsSync(CONFIG_FILE)) {
-    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'mist', displayTheme: 'light' };
+    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2), 'utf-8');
     return defaultConfig;
   }
   try {
     const data = fs.readFileSync(CONFIG_FILE, 'utf-8').replace(/^\uFEFF/, '');
     const config = JSON.parse(data);
-    if (config.password === undefined) config.password = loadSecrets().defaultPassword;
-    if (config.passwordEnabled === undefined) config.passwordEnabled = true;
+    if (config.password === undefined) config.password = '';
+    if (config.passwordEnabled === undefined) config.passwordEnabled = false;
+    if (!config.password) config.passwordEnabled = false;
+    // 旧版遗留的默认密码（0000/0912）在未开启密码保护时视为未设置，避免用户不知情被锁
+    if (config.passwordEnabled !== true && (config.password === '0000' || config.password === '0912')) config.password = '';
     if (config.uninstallPasswordEnabled === undefined) config.uninstallPasswordEnabled = true;
     if (!config.lastRunVersion) config.lastRunVersion = '';
     if (config.soundEnabled === undefined) config.soundEnabled = true;
@@ -104,12 +107,12 @@ function loadConfig() {
     if (config.tablesLocked === undefined) config.tablesLocked = false;
     if (config.autoSave === undefined) config.autoSave = true;
     if (config.autoLock === undefined) config.autoLock = false;
-    if (config.themeSkin === undefined) config.themeSkin = 'mist';
+    if (config.themeSkin === undefined) config.themeSkin = 'default';
     if (config.displayTheme === undefined) config.displayTheme = 'light';
     if (config.syncPassword === undefined) config.syncPassword = '';
     return config;
   } catch (e) {
-    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'mist', displayTheme: 'light' };
+    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
   }
 }
 
@@ -828,7 +831,7 @@ ipcMain.handle('get-week-labels', () => WEEK_LABELS);
 // 密码相关 IPC
 ipcMain.handle('get-config', () => {
   const config = loadConfig();
-  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'mist', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true };
+  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'default', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true };
 });
 
 ipcMain.handle('verify-password', (event, input) => {
@@ -907,6 +910,12 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.6.2': { date: '2026-11-15', items: [
+        '设置新增「默认」风格，可随时恢复初始界面配色',
+        '修复密码保护开启/关闭状态显示与设置流程，避免未设置密码时被锁在启动页',
+        '首页短句更换为诗意浪漫文案',
+        '作业登记：同一日期同一科目重复登记时提示覆盖更新，进入页面不再残留上次未交选择，学生名单为空时不可登记'
+      ] },
       '3.6.1': { date: '2026-11-15', items: [
         '修复学生名单导入较多学生后无法向下滚动查看的问题',
         '修复「切换风格」页面内容较多时无法滚动的问题',

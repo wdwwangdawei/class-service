@@ -206,7 +206,7 @@ namespace GroupScheduleInstaller
             chkDesktopShortcut.Visible = true;
             pnlFeatures.Visible = true;
 
-            lblHeroSub.Text = "版本 3.6.1  ·  请选择安装位置";
+            lblHeroSub.Text = "版本 3.6.2  ·  请选择安装位置";
             phase = "welcome";
 
             btnCancel.Text = "取消";
@@ -308,7 +308,7 @@ namespace GroupScheduleInstaller
 
             lblHeroSub = new Label
             {
-                Text = "版本 3.6.1  ·  请选择安装位置",
+                Text = "版本 3.6.2  ·  请选择安装位置",
                 Font = new Font("Microsoft YaHei UI", 9.5F),
                 ForeColor = CTextLt,
                 BackColor = Color.Transparent,
@@ -974,7 +974,7 @@ namespace GroupScheduleInstaller
             btnCancel.Visible = true;
 
             lblHeroTitle.Text = "班级服务管理系统";
-            lblHeroSub.Text = "版本 3.6.1  ·  请选择安装位置";
+            lblHeroSub.Text = "版本 3.6.2  ·  请选择安装位置";
             picIcon.Visible = true;
             pnlHero.Invalidate();
 
