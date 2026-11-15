@@ -90,11 +90,19 @@ function loadConfig() {
   try {
     const data = fs.readFileSync(CONFIG_FILE, 'utf-8').replace(/^\uFEFF/, '');
     const config = JSON.parse(data);
+    let configChanged = false;
     if (config.password === undefined) config.password = '';
     if (config.passwordEnabled === undefined) config.passwordEnabled = false;
+    // 旧版遗留默认密码（0000/0912）一次性取消，避免升级后用户不知情被锁在启动页
+    if (config.defaultPasswordCleared !== true) {
+      if (config.password === '0000' || config.password === '0912') {
+        config.password = '';
+        config.passwordEnabled = false;
+      }
+      config.defaultPasswordCleared = true;
+      configChanged = true;
+    }
     if (!config.password) config.passwordEnabled = false;
-    // 旧版遗留的默认密码（0000/0912）在未开启密码保护时视为未设置，避免用户不知情被锁
-    if (config.passwordEnabled !== true && (config.password === '0000' || config.password === '0912')) config.password = '';
     if (config.uninstallPasswordEnabled === undefined) config.uninstallPasswordEnabled = true;
     if (!config.lastRunVersion) config.lastRunVersion = '';
     if (config.soundEnabled === undefined) config.soundEnabled = true;
@@ -110,6 +118,7 @@ function loadConfig() {
     if (config.themeSkin === undefined) config.themeSkin = 'default';
     if (config.displayTheme === undefined) config.displayTheme = 'light';
     if (config.syncPassword === undefined) config.syncPassword = '';
+    if (configChanged) saveConfig(config);
     return config;
   } catch (e) {
     return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
@@ -910,6 +919,10 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.6.3': { date: '2026-11-15', items: [
+        '取消旧版遗留的默认密码，升级后不再要求输入未知密码，可在设置中重新设置',
+        '密码验证期间禁用侧边栏，防止绕过锁屏'
+      ] },
       '3.6.2': { date: '2026-11-15', items: [
         '设置新增「默认」风格，可随时恢复初始界面配色',
         '修复密码保护开启/关闭状态显示与设置流程，避免未设置密码时被锁在启动页',

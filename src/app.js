@@ -598,16 +598,24 @@ window.app = {
   async checkPasswordNeeded() {
     const config = await window.electronAPI.getConfig();
     if (config.passwordEnabled && config.passwordSet) {
-      this.showSection('password-lock');
-      const input = document.getElementById('lock-password-input');
-      if (input) {
-        requestAnimationFrame(() => input.focus());
-        input.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') this.unlock();
-        });
-      }
+      this.lockApp();
     } else {
+      this.isLocked = false;
+      document.body.classList.remove('app-locked');
       this.showMainMenu();
+    }
+  },
+
+  lockApp() {
+    this.isLocked = true;
+    document.body.classList.add('app-locked');
+    this.showSection('password-lock');
+    const input = document.getElementById('lock-password-input');
+    if (input) {
+      requestAnimationFrame(() => input.focus());
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') this.unlock();
+      };
     }
   },
 
@@ -622,6 +630,8 @@ window.app = {
       if (result && result.success) {
         error.textContent = '';
         input.value = '';
+        this.isLocked = false;
+        document.body.classList.remove('app-locked');
         this.showMainMenu();
       } else {
         error.textContent = '密码错误，请重试';
@@ -1094,6 +1104,7 @@ window.app = {
   },
 
   showSection(id) {
+    if (this.isLocked && id !== 'password-lock') return;
     if (!this._navBack && this.currentSection && this.currentSection !== id) {
       this.pageHistory.push(this.currentSection);
       if (this.pageHistory.length > 20) this.pageHistory.shift();
@@ -2568,6 +2579,7 @@ window.app = {
     });
   },
 
+  isLocked: false,
   autoLockTimer: null,
   startAutoLock() {
     if (this.autoLockTimer) clearInterval(this.autoLockTimer);
@@ -2576,7 +2588,7 @@ window.app = {
       idle++;
       if (idle >= 300) {
         clearInterval(this.autoLockTimer);
-        this.showSection('password-lock');
+        this.lockApp();
         alert('已闲置5分钟，自动锁屏！');
       }
     }, 1000);
