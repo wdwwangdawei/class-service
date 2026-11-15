@@ -21,12 +21,36 @@ window.app = {
   editingTable: null,
   isEditing: false,
 
+  // 首页哲理短句（每次启动随机取一条）
+  homeQuotes: [
+    '教育是唤醒，而不是灌输。',
+    '种一棵树最好的时间是十年前，其次是现在。',
+    '把每一件简单的事做好，就是不简单。',
+    '星光不问赶路人，时光不负有心人。',
+    '教育的本质，是一棵树摇动另一棵树。',
+    '耐心，是最温柔的力量。',
+    '今天多一分用心，明天多一分从容。',
+    '成长从来不是一蹴而就，而是日积月累。',
+    '让每个孩子都被看见，就是教育最亮的光。',
+    '慢慢来，比较快。',
+    '认真对待每一件小事，时间会给你答案。',
+    '好的教育，是陪孩子一起成为更好的自己。'
+  ],
+
   init() {
+    this.showHomeQuote();
     this.animateSplash();
     this.bindClickSounds();
     this.bindInputGuard();
     this.initRemoteUpdateListener();
     this.checkLicenseAndStart();
+  },
+
+  showHomeQuote() {
+    const el = document.getElementById('home-quote');
+    if (!el || !this.homeQuotes || !this.homeQuotes.length) return;
+    const q = this.homeQuotes[Math.floor(Math.random() * this.homeQuotes.length)];
+    el.textContent = '「' + q + '」';
   },
 
   async checkLicenseAndStart() {
@@ -1509,6 +1533,8 @@ window.app = {
     body.innerHTML = '';
     if (table.type === 'seat') { this.renderSeatTableEditor(table); return; }
     this.setSeatActionsVisibility(false);
+    // 单元格内容变化（失焦/回车）后即时重算总分与排名
+    body.onchange = (e) => this.onEditorCellChange(e);
 
     const headers = ['第几小组', '小组排名', '小组总分', '学生姓名', '个人排名', '总分', ...WEEK_LABELS];
     headers.forEach(h => {
@@ -1551,6 +1577,7 @@ window.app = {
         const gsTd = document.createElement('td');
         gsTd.className = 'group-cell';
         gsTd.rowSpan = groupSize;
+        gsTd.dataset.groupTotal = String(row.group);
         const groupScore = table.group_scores ? (table.group_scores[String(row.group)] || 0) : 0;
         gsTd.textContent = groupScore;
         tr.appendChild(gsTd);
@@ -1803,9 +1830,10 @@ window.app = {
     });
     personalScores.sort((a, b) => b.score - a.score);
 
-    // 计算小组得分（以重算后的 group_scores 为准）
+    // 计算小组得分（以重算后的 group_scores 为准；不含真实学生的小组不参与排名）
     const groupMap = {};
     table.rows.forEach(r => {
+      if (!r.name || r.name.trim() === skipName) return;
       const gs = table.group_scores ? (table.group_scores[String(r.group)] || 0) : 0;
       groupMap[r.group] = gs;
     });
@@ -1903,6 +1931,7 @@ window.app = {
     personalScores.sort((a, b) => b.score - a.score);
     const groupMap = {};
     table.rows.forEach(r => {
+      if (!r.name || r.name.trim() === skipName) return;
       const gs = table.group_scores ? (table.group_scores[String(r.group)] || 0) : 0;
       groupMap[r.group] = gs;
     });
@@ -2585,16 +2614,20 @@ window.app = {
       row.total_score = Math.round(score * 100) / 100;
     }
 
+    // 占位行（空姓名或「——」）不参与排名，避免占用真实学生的名次
+    const isRealRow = r => r && r.name !== undefined && String(r.name).trim() !== '' && String(r.name).trim() !== '——';
+    const realRows = table.rows.filter(isRealRow);
+
     // 2. 个人排名（按总分降序，同分同名次；密集排名 1,1,2：并列后下一名次连续）
-    const indexed = table.rows.map((row, idx) => ({ idx, score: row.total_score }));
-    indexed.sort((a, b) => b.score - a.score);
+    table.rows.forEach(r => { r.personal_rank = ''; });
+    const rankedRows = realRows.slice().sort((a, b) => b.total_score - a.total_score);
     let currentRank = 0;
-    for (let i = 0; i < indexed.length; i++) {
-      if (i === 0 || indexed[i].score < indexed[i - 1].score) currentRank++;
-      table.rows[indexed[i].idx].personal_rank = '第' + currentRank + '名';
+    for (let i = 0; i < rankedRows.length; i++) {
+      if (i === 0 || rankedRows[i].total_score < rankedRows[i - 1].total_score) currentRank++;
+      rankedRows[i].personal_rank = '第' + currentRank + '名';
     }
 
-    // 3. 小组总分与排名
+    // 3. 小组总分与排名（总分仍按全组求和；只有含真实学生的小组参与排名）
     const groupScores = {};
     for (const row of table.rows) {
       if (groupScores[row.group] === undefined) groupScores[row.group] = 0;
@@ -2604,13 +2637,51 @@ window.app = {
     for (const g in groupScores) {
       table.group_scores[g] = Math.round(groupScores[g] * 100) / 100;
     }
-    const groups = Object.keys(groupScores).map(g => ({ group: parseInt(g, 10), score: groupScores[g] }));
+    const groupsWithStudents = new Set(realRows.map(r => String(r.group)));
+    for (const g in table.group_ranks) {
+      if (!groupsWithStudents.has(String(g))) table.group_ranks[g] = '';
+    }
+    const groups = Object.keys(groupScores)
+      .filter(g => groupsWithStudents.has(String(g)))
+      .map(g => ({ group: parseInt(g, 10), score: groupScores[g] }));
     groups.sort((a, b) => b.score - a.score);
     currentRank = 0;
     for (let i = 0; i < groups.length; i++) {
       if (i === 0 || groups[i].score < groups[i - 1].score) currentRank++;
       table.group_ranks[String(groups[i].group)] = '第' + currentRank + '名';
     }
+  },
+
+  // 编辑时单元格变化后即时刷新总分/排名显示（不重建表格，保持滚动位置）
+  refreshComputedCells() {
+    const table = this.editingTable;
+    const body = document.getElementById('editor-body');
+    if (!table || !body) return;
+    body.querySelectorAll('input[data-type="total-score"]').forEach(inp => {
+      const r = table.rows[parseInt(inp.dataset.row, 10)];
+      if (r) inp.value = r.total_score !== undefined ? r.total_score : 0;
+    });
+    body.querySelectorAll('input[data-type="personal-rank"]').forEach(inp => {
+      const r = table.rows[parseInt(inp.dataset.row, 10)];
+      if (r) inp.value = r.personal_rank || '';
+    });
+    body.querySelectorAll('input[data-type="group-rank"]').forEach(inp => {
+      inp.value = (table.group_ranks && table.group_ranks[String(inp.dataset.group)]) || '';
+    });
+    body.querySelectorAll('td[data-group-total]').forEach(td => {
+      const g = String(td.dataset.groupTotal);
+      td.textContent = table.group_scores && table.group_scores[g] !== undefined ? table.group_scores[g] : 0;
+    });
+  },
+
+  onEditorCellChange(e) {
+    if (!this.isEditing || !this.editingTable || this.editingTable.type === 'seat') return;
+    const t = e.target;
+    if (!t || !t.dataset) return;
+    if (t.dataset.type !== 'cell' && t.dataset.type !== 'name') return;
+    this.collectTableData();
+    this.recomputeTable(this.editingTable);
+    this.refreshComputedCells();
   },
 
   async autoCalculate() {

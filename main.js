@@ -694,6 +694,17 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.5.1': { date: '2026-11-15', items: [
+        '启动后自动全屏显示',
+        '首页问候语更新，并随机显示一句哲理短句',
+        '修复量化表加分排名：空行不占名次，编辑单元格后即时重算',
+        '安装与卸载程序升级为 Fluent 浅色界面'
+      ] },
+      '3.5.0': { date: '2026-11-14', items: [
+        '全新 Fluent（Win11/Office）浅色界面',
+        '首页按新设计重做',
+        '修复座位表、导入姓名等问题'
+      ] },
       '3.4.5': { date: '2026-10-17', items: [
         '优化了一些问题'
       ] },
@@ -1130,7 +1141,7 @@ ipcMain.handle('get-app-version', () => {
   // 获取本次更新内容
   let changes = [];
   if (isUpdate && CHANGELOG[currentVersion]) {
-    changes = CHANGELOG[currentVersion];
+    changes = CHANGELOG[currentVersion].items || [];
   }
   return { version: currentVersion, isUpdate, changes };
 });
@@ -2344,6 +2355,8 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, 'src', 'index.html'));
 
   mainWindow.once('ready-to-show', () => {
+    // 启动后自动最大化（全屏显示）
+    mainWindow.maximize();
     mainWindow.show();
   });
 

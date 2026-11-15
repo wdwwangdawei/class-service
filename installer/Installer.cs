@@ -37,14 +37,17 @@ namespace GroupScheduleInstaller
     // ─────────────────────────────────────────────
     class InstallerForm : Form
     {
-        // 主题
-        private static readonly Color C1       = Color.FromArgb(91, 141, 239);   // 渐变起
-        private static readonly Color C2       = Color.FromArgb(108, 92, 231);   // 渐变止
-        private static readonly Color Green1   = Color.FromArgb(52, 211, 153);
-        private static readonly Color Green2   = Color.FromArgb(16, 185, 129);
-        private static readonly Color CText    = Color.FromArgb(58, 63, 75);
-        private static readonly Color CTextLt  = Color.FromArgb(154, 161, 178);
-        private static readonly Color CPanel   = Color.FromArgb(245, 247, 251);
+        // 主题（Fluent / Win11 浅色）
+        private static readonly Color C1       = Color.FromArgb(15, 108, 189);   // 主色
+        private static readonly Color C2       = Color.FromArgb(17, 94, 163);    // 主色悬停
+        private static readonly Color Green1   = Color.FromArgb(14, 122, 13);
+        private static readonly Color Green2   = Color.FromArgb(12, 95, 12);
+        private static readonly Color CText    = Color.FromArgb(27, 27, 27);
+        private static readonly Color CTextLt  = Color.FromArgb(97, 97, 97);
+        private static readonly Color CPanel   = Color.FromArgb(245, 245, 245);
+        private static readonly Color CBorder  = Color.FromArgb(224, 224, 224);
+        private static readonly Color CSoft    = Color.FromArgb(235, 243, 252);
+        private static readonly Color CText3   = Color.FromArgb(138, 138, 138);
 
         // Hero
         private Panel pnlHero;
@@ -112,7 +115,7 @@ namespace GroupScheduleInstaller
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "Programs", "班级服务管理系统");
 
-        private const int Radius = 14;
+        private const int Radius = 8;
 
         public InstallerForm()
         {
@@ -162,6 +165,7 @@ namespace GroupScheduleInstaller
                 ForeColor = CText,
                 Location = new Point(0, 0),
                 Size = new Size(496, 24),
+                BackColor = Color.Transparent,
             };
             pnlLicense.Controls.Add(lblLicenseTitle);
 
@@ -169,14 +173,14 @@ namespace GroupScheduleInstaller
             {
                 Text = LICENSE_TEXT,
                 Font = new Font("Microsoft YaHei UI", 9F),
-                ForeColor = Color.FromArgb(80, 86, 100),
+                ForeColor = Color.FromArgb(80, 80, 80),
                 Location = new Point(0, 30),
                 Size = new Size(496, 210),
                 Multiline = true,
                 ReadOnly = true,
                 ScrollBars = ScrollBars.Vertical,
                 BorderStyle = BorderStyle.FixedSingle,
-                BackColor = Color.FromArgb(248, 249, 252),
+                BackColor = Color.FromArgb(250, 250, 250),
             };
             pnlLicense.Controls.Add(txtLicense);
             this.Controls.Add(pnlLicense);
@@ -202,7 +206,7 @@ namespace GroupScheduleInstaller
             chkDesktopShortcut.Visible = true;
             pnlFeatures.Visible = true;
 
-            lblHeroSub.Text = "版本 3.5.0  ·  请选择安装位置";
+            lblHeroSub.Text = "版本 3.5.1  ·  请选择安装位置";
             phase = "welcome";
 
             btnCancel.Text = "取消";
@@ -276,7 +280,7 @@ namespace GroupScheduleInstaller
             picIcon = new PictureBox
             {
                 BackColor = Color.Transparent,
-                Location = new Point(262, 48),
+                Location = new Point(262, 42),
                 Size = new Size(36, 36),
                 SizeMode = PictureBoxSizeMode.StretchImage,
             };
@@ -291,7 +295,7 @@ namespace GroupScheduleInstaller
             {
                 Text = "班级服务管理系统",
                 Font = new Font("Microsoft YaHei UI", 17F, FontStyle.Bold),
-                ForeColor = Color.White,
+                ForeColor = CText,
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Location = new Point(30, 102),
@@ -304,9 +308,9 @@ namespace GroupScheduleInstaller
 
             lblHeroSub = new Label
             {
-                Text = "版本 3.5.0  ·  请选择安装位置",
+                Text = "版本 3.5.1  ·  请选择安装位置",
                 Font = new Font("Microsoft YaHei UI", 9.5F),
-                ForeColor = Color.FromArgb(222, 228, 255),
+                ForeColor = CTextLt,
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Location = new Point(30, 138),
@@ -318,7 +322,7 @@ namespace GroupScheduleInstaller
             {
                 Text = "×",
                 Font = new Font("Microsoft YaHei UI", 13F),
-                ForeColor = Color.White,
+                ForeColor = CTextLt,
                 BackColor = Color.Transparent,
                 FlatStyle = FlatStyle.Flat,
                 Location = new Point(516, 8),
@@ -326,7 +330,10 @@ namespace GroupScheduleInstaller
                 Cursor = Cursors.Hand,
             };
             btnClose.FlatAppearance.BorderSize = 0;
-            btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 90, 90);
+            btnClose.FlatAppearance.MouseOverBackColor = Color.FromArgb(253, 231, 233);
+            btnClose.FlatAppearance.MouseDownBackColor = Color.FromArgb(249, 211, 215);
+            btnClose.MouseEnter += (s, e) => btnClose.ForeColor = Color.FromArgb(196, 43, 28);
+            btnClose.MouseLeave += (s, e) => btnClose.ForeColor = CTextLt;
             btnClose.Click += (s, e) =>
             {
                 if (isInstalling)
@@ -403,9 +410,9 @@ namespace GroupScheduleInstaller
                 BackColor = Color.Transparent,
             };
             var feats = new[] {
-                new Tuple<string,string>("智能排名与座位表，一键自动安排", "#5B8DEF"),
-                new Tuple<string,string>("成绩导入导出 Excel，打印方便", "#6C5CE7"),
-                new Tuple<string,string>("多款皮肤主题，数据本地保存", "#10B981"),
+                new Tuple<string,string>("智能排名与座位表，一键自动安排", "#0F6CBD"),
+                new Tuple<string,string>("成绩导入导出 Excel，打印方便", "#0E7A0D"),
+                new Tuple<string,string>("多款皮肤主题，数据本地保存", "#C46B00"),
             };
             for (int i = 0; i < feats.Length; i++)
             {
@@ -424,7 +431,7 @@ namespace GroupScheduleInstaller
                 {
                     Text = feats[i].Item1,
                     Font = new Font("Microsoft YaHei UI", 9.5F),
-                    ForeColor = Color.FromArgb(92, 99, 112),
+                    ForeColor = CTextLt,
                     Location = new Point(28, y + 1),
                     Size = new Size(460, 24),
                     BackColor = Color.Transparent,
@@ -497,8 +504,13 @@ namespace GroupScheduleInstaller
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = pnlHero.ClientRectangle;
-            using (var br = new LinearGradientBrush(rect, C1, C2, LinearGradientMode.Vertical))
+            // Fluent 浅色：白色背景 + 顶边淡蓝点缀 + 底部分隔线
+            using (var br = new SolidBrush(Color.White))
                 g.FillRectangle(br, rect);
+            using (var br = new SolidBrush(CSoft))
+                g.FillRectangle(br, 0, 0, rect.Width, 4);
+            using (var pen = new Pen(CBorder, 1f))
+                g.DrawLine(pen, 0, rect.Height - 1, rect.Width, rect.Height - 1);
 
             // 徽章（尺寸与位置按实际 DPI 因子换算，保证始终居中于渐变区）
             int bs = (int)(60 * dpiS);
@@ -520,10 +532,10 @@ namespace GroupScheduleInstaller
             }
             else
             {
-                using (var br = new SolidBrush(Color.FromArgb(42, 255, 255, 255)))
+                using (var br = new SolidBrush(CSoft))
                 using (var path = RoundedPath(badge, brr))
                     g.FillPath(br, path);
-                using (var pen = new Pen(Color.FromArgb(70, 255, 255, 255), 1.2f * dpiS))
+                using (var pen = new Pen(Color.FromArgb(215, 232, 250), 1.2f * dpiS))
                 using (var path = RoundedPath(badge, brr))
                     g.DrawPath(pen, path);
             }
@@ -593,7 +605,7 @@ namespace GroupScheduleInstaller
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            using (var pen = new Pen(Color.FromArgb(214, 218, 227), 1))
+            using (var pen = new Pen(CBorder, 1))
             using (var path = RoundedPath(new Rectangle(0, 0, this.Width - 1, this.Height - 1), Radius))
                 e.Graphics.DrawPath(pen, path);
         }
@@ -891,7 +903,7 @@ namespace GroupScheduleInstaller
                 Location = new Point(32, 204),
                 Size = new Size(496, 220),
             };
-            using (var path = RoundedPath(new Rectangle(0, 0, pnlDone.Width, pnlDone.Height), 12))
+            using (var path = RoundedPath(new Rectangle(0, 0, pnlDone.Width, pnlDone.Height), 8))
                 pnlDone.Region = new Region(path);
 
             var lblDoneTitle = new Label
@@ -962,7 +974,7 @@ namespace GroupScheduleInstaller
             btnCancel.Visible = true;
 
             lblHeroTitle.Text = "班级服务管理系统";
-            lblHeroSub.Text = "版本 3.5.0  ·  请选择安装位置";
+            lblHeroSub.Text = "版本 3.5.1  ·  请选择安装位置";
             picIcon.Visible = true;
             pnlHero.Invalidate();
 
@@ -987,15 +999,15 @@ namespace GroupScheduleInstaller
     {
         public enum BtnKind { Primary, Secondary, Success, Danger }
 
-        private static readonly Color C1 = Color.FromArgb(91, 141, 239);
-        private static readonly Color C2 = Color.FromArgb(108, 92, 231);
-        private static readonly Color G1 = Color.FromArgb(52, 211, 153);
-        private static readonly Color G2 = Color.FromArgb(16, 185, 129);
-        private static readonly Color R1 = Color.FromArgb(255, 107, 107);
-        private static readonly Color R2 = Color.FromArgb(238, 82, 83);
+        private static readonly Color C1 = Color.FromArgb(15, 108, 189);
+        private static readonly Color C2 = Color.FromArgb(17, 94, 163);
+        private static readonly Color G1 = Color.FromArgb(14, 122, 13);
+        private static readonly Color G2 = Color.FromArgb(12, 95, 12);
+        private static readonly Color R1 = Color.FromArgb(196, 43, 28);
+        private static readonly Color R2 = Color.FromArgb(164, 38, 22);
 
         private bool hover = false;
-        private int radius = 10;
+        private int radius = 6;
         public BtnKind Kind = BtnKind.Primary;
 
         public GButton()
@@ -1027,10 +1039,13 @@ namespace GroupScheduleInstaller
 
             if (!Enabled)
             {
-                using (var br = new SolidBrush(Color.FromArgb(207, 212, 224)))
+                using (var br = new SolidBrush(Color.FromArgb(240, 240, 240)))
                 using (var path = InstallerForm.RoundedPath(rect, radius))
                     g.FillPath(br, path);
-                TextRenderer.DrawText(g, Text, Font, ClientRectangle, Color.White,
+                using (var pen = new Pen(Color.FromArgb(224, 224, 224), 1))
+                using (var path = InstallerForm.RoundedPath(rect, radius))
+                    g.DrawPath(pen, path);
+                TextRenderer.DrawText(g, Text, Font, ClientRectangle, Color.FromArgb(166, 166, 166),
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 return;
             }
@@ -1038,13 +1053,13 @@ namespace GroupScheduleInstaller
             switch (Kind)
             {
                 case BtnKind.Secondary:
-                    using (var br = new SolidBrush(hover ? Color.FromArgb(238, 241, 248) : Color.White))
+                    using (var br = new SolidBrush(hover ? Color.FromArgb(245, 245, 245) : Color.White))
                     using (var path = InstallerForm.RoundedPath(rect, radius))
                         g.FillPath(br, path);
-                    using (var pen = new Pen(Color.FromArgb(216, 221, 232), 1))
+                    using (var pen = new Pen(Color.FromArgb(209, 209, 209), 1))
                     using (var path = InstallerForm.RoundedPath(rect, radius))
                         g.DrawPath(pen, path);
-                    textColor = Color.FromArgb(65, 70, 84);
+                    textColor = Color.FromArgb(27, 27, 27);
                     TextRenderer.DrawText(g, Text, Font, ClientRectangle, textColor,
                         TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                     return;
@@ -1053,12 +1068,12 @@ namespace GroupScheduleInstaller
                 default:              a = C1; b = C2; break;
             }
 
-            using (var br = new LinearGradientBrush(rect, a, b, LinearGradientMode.Vertical))
+            using (var br = new SolidBrush(a))
             using (var path = InstallerForm.RoundedPath(rect, radius))
                 g.FillPath(br, path);
             if (hover)
             {
-                using (var br = new SolidBrush(Color.FromArgb(18, 255, 255, 255)))
+                using (var br = new SolidBrush(b))
                 using (var path = InstallerForm.RoundedPath(rect, radius))
                     g.FillPath(br, path);
             }
@@ -1074,7 +1089,7 @@ namespace GroupScheduleInstaller
     {
         private TextBox tb;
         private bool focused = false;
-        private int radius = 10;
+        private int radius = 6;
 
         public event EventHandler InnerTextChanged;
 
@@ -1089,7 +1104,7 @@ namespace GroupScheduleInstaller
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Microsoft YaHei UI", 10F),
                 BackColor = Color.White,
-                ForeColor = Color.FromArgb(58, 63, 75),
+                ForeColor = Color.FromArgb(27, 27, 27),
                 Location = new Point(12, 10),
                 Width = 406,
             };
@@ -1108,7 +1123,7 @@ namespace GroupScheduleInstaller
         public void SetEnabled(bool en)
         {
             tb.Enabled = en;
-            BackColor = en ? Color.White : Color.FromArgb(242, 243, 247);
+            tb.BackColor = en ? Color.White : Color.FromArgb(245, 245, 245);
             tb.BackColor = BackColor;
             Invalidate();
         }
@@ -1125,10 +1140,10 @@ namespace GroupScheduleInstaller
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var br = new SolidBrush(Enabled ? BackColor : Color.FromArgb(242, 243, 247)))
+            using (var br = new SolidBrush(Enabled ? BackColor : Color.FromArgb(245, 245, 245)))
             using (var path = InstallerForm.RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), radius))
                 g.FillPath(br, path);
-            using (var pen = new Pen(focused ? Color.FromArgb(108, 92, 231) : Color.FromArgb(217, 222, 232), focused ? 1.6f : 1f))
+            using (var pen = new Pen(focused ? Color.FromArgb(15, 108, 189) : Color.FromArgb(209, 209, 209), focused ? 2f : 1f))
             using (var path = InstallerForm.RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), radius))
                 g.DrawPath(pen, path);
         }
@@ -1140,9 +1155,8 @@ namespace GroupScheduleInstaller
     class GProgress : Control
     {
         private int val = 0;
-        private int radius = 5;
-        private static readonly Color C1 = Color.FromArgb(91, 141, 239);
-        private static readonly Color C2 = Color.FromArgb(108, 92, 231);
+        private int radius = 3;
+        private static readonly Color C1 = Color.FromArgb(15, 108, 189);
 
         public GProgress()
         {
@@ -1162,7 +1176,7 @@ namespace GroupScheduleInstaller
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
 
-            using (var br = new SolidBrush(Color.FromArgb(233, 236, 243)))
+            using (var br = new SolidBrush(Color.FromArgb(224, 224, 224)))
             using (var path = InstallerForm.RoundedPath(rect, radius))
                 g.FillPath(br, path);
 
@@ -1171,7 +1185,7 @@ namespace GroupScheduleInstaller
                 int fw = (int)((float)val / 100 * Width);
                 if (fw < radius * 2) fw = radius * 2;
                 var fill = new Rectangle(0, 0, fw, Height - 1);
-                using (var br = new LinearGradientBrush(new Rectangle(0, 0, Width, Height), C1, C2, LinearGradientMode.Horizontal))
+                using (var br = new SolidBrush(C1))
                 using (var path = InstallerForm.RoundedPath(fill, radius))
                     g.FillPath(br, path);
             }

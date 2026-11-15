@@ -62,12 +62,14 @@ namespace GroupScheduleUninstaller
     // ─────────────────────────────────────────────
     abstract class GForm : Form
     {
-        protected static readonly Color C1      = Color.FromArgb(91, 141, 239);
-        protected static readonly Color C2      = Color.FromArgb(108, 92, 231);
-        protected static readonly Color CText   = Color.FromArgb(58, 63, 75);
-        protected static readonly Color CTextLt = Color.FromArgb(154, 161, 178);
-        protected static readonly Color CPanel  = Color.FromArgb(245, 247, 251);
-        protected const int Radius = 14;
+        protected static readonly Color C1      = Color.FromArgb(15, 108, 189);
+        protected static readonly Color C2      = Color.FromArgb(17, 94, 163);
+        protected static readonly Color CText   = Color.FromArgb(27, 27, 27);
+        protected static readonly Color CTextLt = Color.FromArgb(97, 97, 97);
+        protected static readonly Color CPanel  = Color.FromArgb(245, 245, 245);
+        protected static readonly Color CBorder = Color.FromArgb(224, 224, 224);
+        protected static readonly Color CSoft   = Color.FromArgb(235, 243, 252);
+        protected const int Radius = 8;
 
         protected Panel hero;
         protected PictureBox picIcon;
@@ -106,7 +108,7 @@ namespace GroupScheduleUninstaller
             {
                 Text = title,
                 Font = new Font("Microsoft YaHei UI", 15F, FontStyle.Bold),
-                ForeColor = Color.White,
+                ForeColor = CText,
                 BackColor = Color.Transparent,
                 TextAlign = ContentAlignment.MiddleCenter,
                 Location = new Point(20, height - 58),
@@ -123,7 +125,7 @@ namespace GroupScheduleUninstaller
                 {
                     Text = sub,
                     Font = new Font("Microsoft YaHei UI", 9F),
-                    ForeColor = Color.FromArgb(222, 228, 255),
+                    ForeColor = CTextLt,
                     BackColor = Color.Transparent,
                     TextAlign = ContentAlignment.MiddleCenter,
                     Location = new Point(20, height - 24),
@@ -141,7 +143,7 @@ namespace GroupScheduleUninstaller
             {
                 Text = "×",
                 Font = new Font("Microsoft YaHei UI", 13F),
-                ForeColor = Color.White,
+                ForeColor = CTextLt,
                 BackColor = Color.Transparent,
                 FlatStyle = FlatStyle.Flat,
                 Location = new Point(ClientSize.Width - 44, 8),
@@ -149,7 +151,10 @@ namespace GroupScheduleUninstaller
                 Cursor = Cursors.Hand,
             };
             btn.FlatAppearance.BorderSize = 0;
-            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(255, 90, 90);
+            btn.FlatAppearance.MouseOverBackColor = Color.FromArgb(253, 231, 233);
+            btn.FlatAppearance.MouseDownBackColor = Color.FromArgb(249, 211, 215);
+            btn.MouseEnter += (s, e) => btn.ForeColor = Color.FromArgb(196, 43, 28);
+            btn.MouseLeave += (s, e) => btn.ForeColor = CTextLt;
             btn.Click += (s, e) => { this.DialogResult = DialogResult.Cancel; this.Close(); };
             hero.Controls.Add(btn);
         }
@@ -171,15 +176,20 @@ namespace GroupScheduleUninstaller
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = hero.ClientRectangle;
-            using (var br = new LinearGradientBrush(rect, C1, C2, LinearGradientMode.Vertical))
+            // Fluent 浅色：白色背景 + 顶边淡蓝点缀 + 底部分隔线
+            using (var br = new SolidBrush(Color.White))
                 g.FillRectangle(br, rect);
+            using (var br = new SolidBrush(CSoft))
+                g.FillRectangle(br, 0, 0, rect.Width, 4);
+            using (var pen = new Pen(CBorder, 1f))
+                g.DrawLine(pen, 0, rect.Height - 1, rect.Width, rect.Height - 1);
 
             int badgeSize = picIcon.Width + picIcon.Width / 2;
             var badge = BadgeRect(badgeSize);
-            using (var br = new SolidBrush(Color.FromArgb(42, 255, 255, 255)))
+            using (var br = new SolidBrush(CSoft))
             using (var path = RoundedPath(badge, (int)(badgeSize * 0.27)))
                 g.FillPath(br, path);
-            using (var pen = new Pen(Color.FromArgb(70, 255, 255, 255), 1.2f))
+            using (var pen = new Pen(Color.FromArgb(215, 232, 250), 1.2f))
             using (var path = RoundedPath(badge, (int)(badgeSize * 0.27)))
                 g.DrawPath(pen, path);
         }
@@ -214,6 +224,29 @@ namespace GroupScheduleUninstaller
                 }
                 catch { }
             }
+            // 兜底：安装目录中没有独立图标时，从自身嵌入资源 / exe 图标提取
+            try
+            {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var st = asm.GetManifestResourceStream("appicon"))
+                {
+                    if (st != null)
+                    {
+                        using (var img = Image.FromStream(st))
+                            picIcon.Image = new Bitmap(img, new Size(px, px));
+                        try { this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
+                        return;
+                    }
+                }
+            }
+            catch { }
+            try
+            {
+                this.Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
+                if (this.Icon != null)
+                    picIcon.Image = new Bitmap(this.Icon.ToBitmap(), new Size(px, px));
+            }
+            catch { }
         }
 
         internal static GraphicsPath RoundedPath(Rectangle r, int radius)
@@ -250,7 +283,7 @@ namespace GroupScheduleUninstaller
         protected override void OnPaint(PaintEventArgs e)
         {
             base.OnPaint(e);
-            using (var pen = new Pen(Color.FromArgb(214, 218, 227), 1))
+            using (var pen = new Pen(CBorder, 1))
             using (var path = RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), Radius))
                 e.Graphics.DrawPath(pen, path);
         }
@@ -448,14 +481,14 @@ namespace GroupScheduleUninstaller
                 Location = new Point(30, 168),
                 Size = new Size(400, 74),
             };
-            using (var path = RoundedPath(new Rectangle(0, 0, pnlNotice.Width, pnlNotice.Height), 12))
+            using (var path = RoundedPath(new Rectangle(0, 0, pnlNotice.Width, pnlNotice.Height), 8))
                 pnlNotice.Region = new Region(path);
 
             var picShield = new Label
             {
                 Text = "✓",
                 Font = new Font("Microsoft YaHei UI", 14F, FontStyle.Bold),
-                ForeColor = Color.FromArgb(16, 185, 129),
+                ForeColor = Color.FromArgb(14, 122, 13),
                 Location = new Point(16, 12),
                 Size = new Size(26, 26),
                 BackColor = Color.Transparent,
@@ -707,7 +740,11 @@ namespace GroupScheduleUninstaller
             if (Directory.Exists(installDir))
             {
                 foreach (var f in Directory.GetFiles(installDir))
+                {
+                    // 跳过卸载程序自身（运行中无法删除，退出后由批处理清理）
+                    if (string.Equals(Path.GetFileName(f), "Uninstall.exe", StringComparison.OrdinalIgnoreCase)) continue;
                     filesToDelete.Add(f);
+                }
                 foreach (var d in Directory.GetDirectories(installDir))
                 {
                     string name = Path.GetFileName(d);
@@ -799,12 +836,14 @@ namespace GroupScheduleUninstaller
                 Location = new Point(30, 168),
                 Size = new Size(400, 140),
             };
-            using (var path = RoundedPath(new Rectangle(0, 0, pnlDone.Width, pnlDone.Height), 12))
+            using (var path = RoundedPath(new Rectangle(0, 0, pnlDone.Width, pnlDone.Height), 8))
                 pnlDone.Region = new Region(path);
 
             var lblStats = new Label
             {
-                Text = string.Format("已删除 {0} 项，失败 {1} 项", deleted, failed),
+                Text = failed > 0
+                    ? string.Format("已删除 {0} 项，失败 {1} 项", deleted, failed)
+                    : string.Format("已删除 {0} 项", deleted),
                 Font = new Font("Microsoft YaHei UI", 10F, FontStyle.Bold),
                 ForeColor = CText,
                 Location = new Point(20, 18),
@@ -855,13 +894,13 @@ namespace GroupScheduleUninstaller
     {
         public enum BtnKind { Primary, Secondary, Success, Danger }
 
-        private static readonly Color C1 = Color.FromArgb(91, 141, 239);
-        private static readonly Color C2 = Color.FromArgb(108, 92, 231);
-        private static readonly Color R1 = Color.FromArgb(255, 107, 107);
-        private static readonly Color R2 = Color.FromArgb(238, 82, 83);
+        private static readonly Color C1 = Color.FromArgb(15, 108, 189);
+        private static readonly Color C2 = Color.FromArgb(17, 94, 163);
+        private static readonly Color R1 = Color.FromArgb(196, 43, 28);
+        private static readonly Color R2 = Color.FromArgb(164, 38, 22);
 
         private bool hover = false;
-        private int radius = 10;
+        private int radius = 6;
         public BtnKind Kind = BtnKind.Primary;
 
         public GButton()
@@ -891,23 +930,26 @@ namespace GroupScheduleUninstaller
 
             if (!Enabled)
             {
-                using (var br = new SolidBrush(Color.FromArgb(207, 212, 224)))
+                using (var br = new SolidBrush(Color.FromArgb(240, 240, 240)))
                 using (var path = GForm.RoundedPath(rect, radius))
                     g.FillPath(br, path);
-                TextRenderer.DrawText(g, Text, Font, ClientRectangle, Color.White,
+                using (var pen = new Pen(Color.FromArgb(224, 224, 224), 1))
+                using (var path = GForm.RoundedPath(rect, radius))
+                    g.DrawPath(pen, path);
+                TextRenderer.DrawText(g, Text, Font, ClientRectangle, Color.FromArgb(166, 166, 166),
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 return;
             }
 
             if (Kind == BtnKind.Secondary)
             {
-                using (var br = new SolidBrush(hover ? Color.FromArgb(238, 241, 248) : Color.White))
+                using (var br = new SolidBrush(hover ? Color.FromArgb(245, 245, 245) : Color.White))
                 using (var path = GForm.RoundedPath(rect, radius))
                     g.FillPath(br, path);
-                using (var pen = new Pen(Color.FromArgb(216, 221, 232), 1))
+                using (var pen = new Pen(Color.FromArgb(209, 209, 209), 1))
                 using (var path = GForm.RoundedPath(rect, radius))
                     g.DrawPath(pen, path);
-                TextRenderer.DrawText(g, Text, Font, ClientRectangle, Color.FromArgb(65, 70, 84),
+                TextRenderer.DrawText(g, Text, Font, ClientRectangle, Color.FromArgb(27, 27, 27),
                     TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
                 return;
             }
@@ -916,12 +958,12 @@ namespace GroupScheduleUninstaller
             if (Kind == BtnKind.Danger) { a = R1; b = R2; }
             else { a = C1; b = C2; }
 
-            using (var br = new LinearGradientBrush(rect, a, b, LinearGradientMode.Vertical))
+            using (var br = new SolidBrush(a))
             using (var path = GForm.RoundedPath(rect, radius))
                 g.FillPath(br, path);
             if (hover)
             {
-                using (var br = new SolidBrush(Color.FromArgb(18, 255, 255, 255)))
+                using (var br = new SolidBrush(b))
                 using (var path = GForm.RoundedPath(rect, radius))
                     g.FillPath(br, path);
             }
@@ -937,7 +979,7 @@ namespace GroupScheduleUninstaller
     {
         private TextBox tb;
         private bool focused = false;
-        private int radius = 10;
+        private int radius = 6;
 
         public bool IsPassword = false;
         public event EventHandler KeyEnter;
@@ -953,7 +995,7 @@ namespace GroupScheduleUninstaller
                 BorderStyle = BorderStyle.None,
                 Font = new Font("Microsoft YaHei UI", 11F),
                 BackColor = Color.White,
-                ForeColor = Color.FromArgb(58, 63, 75),
+                ForeColor = Color.FromArgb(27, 27, 27),
                 Location = new Point(12, 9),
                 Width = 348,
             };
@@ -1003,7 +1045,7 @@ namespace GroupScheduleUninstaller
             using (var br = new SolidBrush(BackColor))
             using (var path = GForm.RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), radius))
                 g.FillPath(br, path);
-            using (var pen = new Pen(focused ? Color.FromArgb(108, 92, 231) : Color.FromArgb(217, 222, 232), focused ? 1.6f : 1f))
+            using (var pen = new Pen(focused ? Color.FromArgb(15, 108, 189) : Color.FromArgb(209, 209, 209), focused ? 2f : 1f))
             using (var path = GForm.RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), radius))
                 g.DrawPath(pen, path);
         }
@@ -1015,9 +1057,8 @@ namespace GroupScheduleUninstaller
     class GProgress : Control
     {
         private int val = 0;
-        private int radius = 5;
-        private static readonly Color C1 = Color.FromArgb(91, 141, 239);
-        private static readonly Color C2 = Color.FromArgb(108, 92, 231);
+        private int radius = 3;
+        private static readonly Color C1 = Color.FromArgb(15, 108, 189);
 
         public GProgress()
         {
@@ -1037,7 +1078,7 @@ namespace GroupScheduleUninstaller
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var rect = new Rectangle(0, 0, Width - 1, Height - 1);
 
-            using (var br = new SolidBrush(Color.FromArgb(233, 236, 243)))
+            using (var br = new SolidBrush(Color.FromArgb(224, 224, 224)))
             using (var path = GForm.RoundedPath(rect, radius))
                 g.FillPath(br, path);
 
@@ -1046,7 +1087,7 @@ namespace GroupScheduleUninstaller
                 int fw = (int)((float)val / 100 * Width);
                 if (fw < radius * 2) fw = radius * 2;
                 var fill = new Rectangle(0, 0, fw, Height - 1);
-                using (var br = new LinearGradientBrush(new Rectangle(0, 0, Width, Height), C1, C2, LinearGradientMode.Horizontal))
+                using (var br = new SolidBrush(C1))
                 using (var path = GForm.RoundedPath(fill, radius))
                     g.FillPath(br, path);
             }
@@ -1068,21 +1109,22 @@ namespace GroupScheduleUninstaller
             DoubleBuffered = true;
             Font = new Font("Microsoft YaHei UI", 9F);
 
-            using (var path = GForm.RoundedPath(new Rectangle(0, 0, Width, Height), 14))
+            using (var path = GForm.RoundedPath(new Rectangle(0, 0, Width, Height), 8))
                 Region = new Region(path);
 
             var top = new Panel { Dock = DockStyle.Top, Height = 64 };
             top.Paint += (s, e) =>
             {
-                using (var br = new LinearGradientBrush(top.ClientRectangle,
-                    Color.FromArgb(255, 107, 107), Color.FromArgb(238, 82, 83), LinearGradientMode.Vertical))
+                using (var br = new SolidBrush(Color.FromArgb(253, 231, 233)))
                     e.Graphics.FillRectangle(br, top.ClientRectangle);
+                using (var pen = new Pen(Color.FromArgb(249, 211, 215)))
+                    e.Graphics.DrawLine(pen, 0, top.Height - 1, top.Width, top.Height - 1);
             };
             var lblT = new Label
             {
                 Text = "提示",
                 Font = new Font("Microsoft YaHei UI", 13F, FontStyle.Bold),
-                ForeColor = Color.White,
+                ForeColor = Color.FromArgb(196, 43, 28),
                 Location = new Point(20, 18),
                 Size = new Size(200, 26),
                 BackColor = Color.Transparent,
@@ -1094,7 +1136,7 @@ namespace GroupScheduleUninstaller
             {
                 Text = message,
                 Font = new Font("Microsoft YaHei UI", 9.5F),
-                ForeColor = Color.FromArgb(58, 63, 75),
+                ForeColor = Color.FromArgb(27, 27, 27),
                 Location = new Point(20, 88),
                 Size = new Size(360, 60),
             };
