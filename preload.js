@@ -18,6 +18,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   backupExport: () => ipcRenderer.invoke('backup-export'),
   backupImport: () => ipcRenderer.invoke('backup-import'),
+  backupExportFolder: () => ipcRenderer.invoke('backup-export-folder'),
+  backupValidate: () => ipcRenderer.invoke('backup-validate'),
+  backupImportFull: (params) => ipcRenderer.invoke('backup-import-full', params),
+  createCycleTable: (params) => ipcRenderer.invoke('create-cycle-table', params),
   exportExcel: (table) => ipcRenderer.invoke('export-excel', table),
   importExcel: (params) => ipcRenderer.invoke('import-excel', params),
   importNames: () => ipcRenderer.invoke('import-names'),
@@ -46,7 +50,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   syncGetStatus: () => ipcRenderer.invoke('sync-get-status'),
   rankGet: () => ipcRenderer.invoke('rank-get'),
   rankSave: (rank) => ipcRenderer.invoke('rank-save', rank),
-  rankReset: () => ipcRenderer.invoke('rank-reset')
+  rankReset: () => ipcRenderer.invoke('rank-reset'),
+  rosterGet: () => ipcRenderer.invoke('roster-get'),
+  rosterSave: (roster) => ipcRenderer.invoke('roster-save', roster),
+  dutyGet: () => ipcRenderer.invoke('duty-get'),
+  dutySave: (duty) => ipcRenderer.invoke('duty-save', duty),
+  homeworkGet: () => ipcRenderer.invoke('homework-get'),
+  homeworkSave: (record) => ipcRenderer.invoke('homework-save', record),
+  homeworkDelete: (id) => ipcRenderer.invoke('homework-delete', id)
 });
 
 

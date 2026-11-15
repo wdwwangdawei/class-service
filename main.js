@@ -17,6 +17,9 @@ const TABLES_FILE = path.join(DATA_DIR, 'tables.json');
 const CONFIG_FILE = path.join(DATA_DIR, 'config.json');
 const SECRETS_FILE = path.join(DATA_DIR, 'secrets.json');
 const RANK_FILE = path.join(DATA_DIR, 'rank.json');
+const ROSTER_FILE = path.join(DATA_DIR, 'roster.json');
+const DUTY_FILE = path.join(DATA_DIR, 'duty.json');
+const HOMEWORK_FILE = path.join(DATA_DIR, 'homework.json');
 
 // 兼容旧版本：如果旧位置有数据，自动迁移
 function migrateOldData() {
@@ -80,7 +83,7 @@ function loadSecrets() {
 function loadConfig() {
   ensureDataDir();
   if (!fs.existsSync(CONFIG_FILE)) {
-    const defaultConfig = { password: loadSecrets().defaultPassword, passwordEnabled: true, uninstallPasswordEnabled: true, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
+    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'mist', displayTheme: 'light' };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2), 'utf-8');
     return defaultConfig;
   }
@@ -101,12 +104,12 @@ function loadConfig() {
     if (config.tablesLocked === undefined) config.tablesLocked = false;
     if (config.autoSave === undefined) config.autoSave = true;
     if (config.autoLock === undefined) config.autoLock = false;
-    if (config.themeSkin === undefined) config.themeSkin = 'default';
+    if (config.themeSkin === undefined) config.themeSkin = 'mist';
     if (config.displayTheme === undefined) config.displayTheme = 'light';
     if (config.syncPassword === undefined) config.syncPassword = '';
     return config;
   } catch (e) {
-    return { password: loadSecrets().defaultPassword, passwordEnabled: true, uninstallPasswordEnabled: true, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
+    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'mist', displayTheme: 'light' };
   }
 }
 
@@ -412,9 +415,9 @@ function loadTables() {
     return [];
   }
   try {
-    const data = fs.readFileSync(TABLES_FILE, 'utf-8');
+    const data = fs.readFileSync(TABLES_FILE, 'utf-8').replace(/^\uFEFF/, '');
     const tables = JSON.parse(data);
-    return tables.map(migrateTable);
+    return Array.isArray(tables) ? tables.map(migrateTable) : [];
   } catch (e) {
     return [];
   }
@@ -451,6 +454,153 @@ function saveTables(tables) {
   ensureDataDir();
   fs.writeFileSync(TABLES_FILE, JSON.stringify(tables, null, 2), 'utf-8');
   autoBackupTables();
+}
+
+// ===== 新增模块数据（学生名单 / 值日表 / 作业登记）：仅新增文件，不改动既有数据结构 =====
+function loadJsonSafe(file, fallback) {
+  try {
+    if (!fs.existsSync(file)) return fallback;
+    const text = fs.readFileSync(file, 'utf-8').replace(/^\uFEFF/, '');
+    const data = JSON.parse(text);
+    return data && typeof data === 'object' ? data : fallback;
+  } catch (e) {
+    return fallback;
+  }
+}
+
+// 新模块数据的自动备份：各自保留最近 10 份，文件名前缀区分，不影响 tables_* 备份列表
+function autoBackupFile(file, prefix) {
+  try {
+    if (!fs.existsSync(file)) return;
+    const backupDir = path.join(DATA_DIR, 'backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const stamp = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+    fs.copyFileSync(file, path.join(backupDir, `${prefix}_${stamp}.json`));
+    const all = fs.readdirSync(backupDir)
+      .filter(f => f.startsWith(prefix + '_') && f.endsWith('.json'))
+      .sort()
+      .reverse();
+    for (let i = 10; i < all.length; i++) {
+      try { fs.unlinkSync(path.join(backupDir, all[i])); } catch {}
+    }
+  } catch (e) {
+    // 备份失败不影响主流程
+  }
+}
+
+function loadRoster() {
+  const data = loadJsonSafe(ROSTER_FILE, { version: 1, updated_at: '', students: [] });
+  if (!Array.isArray(data.students)) data.students = [];
+  data.students = data.students
+    .filter(s => s && String(s.name || '').trim() !== '')
+    .map(s => ({
+      id: s.id || crypto.randomUUID(),
+      name: String(s.name).trim(),
+      group: s.group === undefined || s.group === null ? '' : s.group,
+      note: s.note === undefined ? '' : String(s.note)
+    }));
+  return { version: 1, updated_at: data.updated_at || '', students: data.students };
+}
+
+function saveRoster(roster) {
+  ensureDataDir();
+  const students = Array.isArray(roster && roster.students) ? roster.students : [];
+  const normalized = students
+    .filter(s => s && String(s.name || '').trim() !== '')
+    .map(s => ({
+      id: s.id || crypto.randomUUID(),
+      name: String(s.name).trim(),
+      group: s.group === undefined || s.group === null ? '' : s.group,
+      note: s.note === undefined ? '' : String(s.note)
+    }));
+  const data = { version: 1, updated_at: new Date().toISOString(), students: normalized };
+  fs.writeFileSync(ROSTER_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  autoBackupFile(ROSTER_FILE, 'roster');
+  return data;
+}
+
+const DUTY_DAYS = ['周一', '周二', '周三', '周四', '周五'];
+const DUTY_TASKS = ['扫地', '拖地', '擦黑板'];
+
+function emptyDutyDays() {
+  const days = {};
+  DUTY_DAYS.forEach(d => {
+    days[d] = {};
+    DUTY_TASKS.forEach(t => { days[d][t] = []; });
+  });
+  return days;
+}
+
+function loadDuty() {
+  const data = loadJsonSafe(DUTY_FILE, { version: 1, updated_at: '', tasks: DUTY_TASKS.slice(), days: emptyDutyDays() });
+  const tasks = (Array.isArray(data.tasks) && data.tasks.length)
+    ? data.tasks.map(t => String(t)).filter(Boolean)
+    : DUTY_TASKS.slice();
+  const srcDays = (data.days && typeof data.days === 'object') ? data.days : {};
+  const days = {};
+  DUTY_DAYS.forEach(d => {
+    const src = (srcDays[d] && typeof srcDays[d] === 'object') ? srcDays[d] : {};
+    days[d] = {};
+    tasks.forEach(t => {
+      days[d][t] = Array.isArray(src[t]) ? src[t].map(n => String(n).trim()).filter(Boolean) : [];
+    });
+  });
+  return { version: 1, updated_at: data.updated_at || '', tasks, days };
+}
+
+function saveDuty(duty) {
+  ensureDataDir();
+  const tasks = (Array.isArray(duty && duty.tasks) && duty.tasks.length)
+    ? duty.tasks.map(t => String(t)).filter(Boolean)
+    : DUTY_TASKS.slice();
+  const days = {};
+  DUTY_DAYS.forEach(d => {
+    const src = (duty && duty.days && duty.days[d] && typeof duty.days[d] === 'object') ? duty.days[d] : {};
+    days[d] = {};
+    tasks.forEach(t => {
+      days[d][t] = Array.isArray(src[t]) ? src[t].map(n => String(n).trim()).filter(Boolean) : [];
+    });
+  });
+  const data = { version: 1, updated_at: new Date().toISOString(), tasks, days };
+  fs.writeFileSync(DUTY_FILE, JSON.stringify(data, null, 2), 'utf-8');
+  autoBackupFile(DUTY_FILE, 'duty');
+  return data;
+}
+
+function loadHomework() {
+  const data = loadJsonSafe(HOMEWORK_FILE, { version: 1, records: [] });
+  if (!Array.isArray(data.records)) data.records = [];
+  data.records = data.records
+    .filter(r => r && typeof r === 'object')
+    .map(r => ({
+      id: r.id || crypto.randomUUID(),
+      date: String(r.date || ''),
+      subject: String(r.subject || ''),
+      content: String(r.content || ''),
+      missing: Array.isArray(r.missing) ? r.missing.map(n => String(n)).filter(Boolean) : [],
+      total: Number(r.total) || 0,
+      created_at: r.created_at || ''
+    }));
+  return { version: 1, records: data.records };
+}
+
+function saveHomework(data) {
+  ensureDataDir();
+  const records = Array.isArray(data && data.records) ? data.records : [];
+  const normalized = records.map(r => ({
+    id: r.id || crypto.randomUUID(),
+    date: String(r.date || ''),
+    subject: String(r.subject || ''),
+    content: String(r.content || ''),
+    missing: Array.isArray(r.missing) ? r.missing.map(n => String(n)).filter(Boolean) : [],
+    total: Number(r.total) || 0,
+    created_at: r.created_at || new Date().toLocaleString('zh-CN', { hour12: false })
+  }));
+  fs.writeFileSync(HOMEWORK_FILE, JSON.stringify({ version: 1, records: normalized }, null, 2), 'utf-8');
+  autoBackupFile(HOMEWORK_FILE, 'homework');
+  return { version: 1, records: normalized };
 }
 
 function createTable(name, totalPeople, membersPerGroup, useLastNames) {
@@ -521,6 +671,63 @@ ipcMain.handle('add-table', (event, table) => {
   tables.push(table);
   saveTables(tables);
   return table;
+});
+
+// 基于现有量化表生成下一周期表：保留姓名与分组，清空积分与排名，旧表不变
+ipcMain.handle('create-cycle-table', (event, payload = {}) => {
+  try {
+    const sourceId = payload && payload.sourceId;
+    const name = payload && payload.name;
+    const tables = loadTables();
+    const src = tables.find(t => t.id === sourceId);
+    if (!src) return { success: false, error: '原表格不存在，可能已被删除' };
+    if ((src.type || 'ranking') !== 'ranking') return { success: false, error: '仅班级量化表支持生成下一周期' };
+    const trimmed = String(name || '').trim();
+    if (!trimmed) return { success: false, error: '请填写新表格名称' };
+    if (trimmed.length > 60) return { success: false, error: '表格名称请控制在 60 个字符以内' };
+
+    // 同名时自动追加序号，避免表格列表中出现重名
+    const names = new Set(tables.map(t => t.name));
+    let finalName = trimmed;
+    if (names.has(finalName)) {
+      let i = 1;
+      while (names.has(`${trimmed}(${i})`)) i++;
+      finalName = `${trimmed}(${i})`;
+    }
+
+    const rows = (src.rows || []).map(r => ({
+      group: Number(r && r.group) || 1,
+      name: String(r && r.name !== undefined && r.name !== null ? r.name : ''),
+      personal_rank: '',
+      total_score: 0,
+      cells: Array(WEEK_LABELS.length).fill('')
+    }));
+    const numGroups = Number(src.num_groups) || (rows.length ? Math.max.apply(null, rows.map(r => r.group)) : 0);
+    const groupRanks = {};
+    const groupScores = {};
+    for (let g = 1; g <= numGroups; g++) {
+      groupRanks[String(g)] = '';
+      groupScores[String(g)] = 0;
+    }
+
+    const table = {
+      id: crypto.randomUUID(),
+      type: 'ranking',
+      name: finalName,
+      created_at: new Date().toLocaleString('zh-CN', { hour12: false }),
+      total_people: Number(src.total_people) || rows.length,
+      num_groups: numGroups,
+      members_per_group: Number(src.members_per_group) || 6,
+      group_ranks: groupRanks,
+      group_scores: groupScores,
+      rows
+    };
+    tables.push(table);
+    saveTables(tables);
+    return { success: true, table, renamed: finalName !== trimmed };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 ipcMain.handle('update-table', (event, table) => {
@@ -621,7 +828,7 @@ ipcMain.handle('get-week-labels', () => WEEK_LABELS);
 // 密码相关 IPC
 ipcMain.handle('get-config', () => {
   const config = loadConfig();
-  return { passwordEnabled: config.passwordEnabled, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'default', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true };
+  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'mist', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true };
 });
 
 ipcMain.handle('verify-password', (event, input) => {
@@ -659,6 +866,9 @@ ipcMain.handle('toggle-password', (event, { action, password }) => {
     saveConfig(config);
     return { success: true };
   } else if (action === 'enable') {
+    if (!config.password) {
+      return { success: false, error: '请先设置启动密码' };
+    }
     config.passwordEnabled = true;
     saveConfig(config);
     return { success: true };
@@ -689,14 +899,30 @@ ipcMain.handle('confirm-box', (event, options) => {
     title: options.title || '提示',
     message: options.message || '',
     buttons: options.buttons || ['确定', '取消'],
-    defaultId: 0,
-    cancelId: 1
+    defaultId: options.defaultId !== undefined ? options.defaultId : 0,
+    cancelId: options.cancelId !== undefined ? options.cancelId : 1
   });
   return result;
 });
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.6.0': { date: '2026-11-15', items: [
+        '量化表新增「下一周期」：基于当前表一键生成新周期表，保留姓名与分组，清空积分和排名，旧表不受影响',
+        '备份页新增「导出到文件夹」：一次导出全部数据（含学生名单、值日表、作业登记），可直接存到 U 盘或任意文件夹',
+        '备份页新增「校验并恢复」：恢复前自动校验文件并显示内容摘要，可选「合并」或「覆盖」，恢复前自动保存当前数据快照',
+        '备份文件不包含任何密码与同步令牌，旧版备份文件仍可直接导入',
+        '设置中「主题皮肤」改为「切换风格」，提供 6 款全新配色，旧风格自动切换为「晨雾蓝」',
+        '新安装默认无需启动密码，可在设置中自行设置并开启密码保护'
+      ] },
+      '3.5.3': { date: '2026-11-15', items: [
+        '新增「学生名单」：统一维护学生姓名，量化表、座位表、值日表、作业登记共用',
+        '首页新增班级数据看板：积分走势、小组排行、个人 Top8 实时统计',
+        '量化表新增快捷加分面板，点击学生即可加分，并支持一键撤销',
+        '新增「值日表」与「作业登记」两个模块',
+        '班级段位测试提示改为 Fluent 动画，去掉 3 秒等待',
+        '数据备份同步包含新模块数据，旧版本数据完全兼容'
+      ] },
       '3.5.2': { date: '2026-11-15', items: [
         '修复点击「立即更新」后误报「没有可用的更新」的问题',
         '自动更新兼容不同命名的更新包，下载更可靠'
@@ -1354,7 +1580,10 @@ ipcMain.handle('backup-export', async () => {
     const backup = {
       version: app.getVersion(),
       backupTime: new Date().toISOString(),
-      tables: loadTables()
+      tables: loadTables(),
+      roster: loadRoster(),
+      duty: loadDuty(),
+      homework: loadHomework()
     };
     fs.writeFileSync(result.filePath, JSON.stringify(backup, null, 2), 'utf-8');
     return { success: true, path: result.filePath };
@@ -1400,7 +1629,330 @@ ipcMain.handle('backup-import', async () => {
       added++;
     }
     saveTables(existing);
-    return { success: true, count: added, renamed: renamed, total: existing.length };
+    // 新模块数据：仅当当前数据为空时从备份恢复，避免覆盖现有内容
+    const restoredModules = [];
+    try {
+      if (data.roster && Array.isArray(data.roster.students) && data.roster.students.length) {
+        if (loadRoster().students.length === 0) {
+          saveRoster(data.roster);
+          restoredModules.push('学生名单');
+        }
+      }
+      if (data.duty && data.duty.days) {
+        const cur = loadDuty();
+        const hasAny = Object.keys(cur.days).some(d => Object.keys(cur.days[d]).some(t => cur.days[d][t].length));
+        if (!hasAny) {
+          saveDuty(data.duty);
+          restoredModules.push('值日表');
+        }
+      }
+      if (data.homework && Array.isArray(data.homework.records) && data.homework.records.length) {
+        if (loadHomework().records.length === 0) {
+          saveHomework(data.homework);
+          restoredModules.push('作业登记');
+        }
+      }
+    } catch (e) {
+      // 新模块恢复失败不影响表格恢复
+    }
+    return { success: true, count: added, renamed: renamed, total: existing.length, restoredModules };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// ===== 完整备份（导出到指定文件夹 / 校验后恢复）=====
+const BACKUP_FORMAT = 'class-service-full-backup';
+// 仅备份界面偏好类配置，任何密码、同步令牌、锁定状态都不进入备份
+const BACKUP_CONFIG_KEYS = ['soundEnabled', 'soundVolume', 'language', 'fontFamily', 'bgmEnabled', 'bgmVolume', 'themeSkin', 'displayTheme', 'autoSave'];
+
+function sanitizeConfigForBackup(config) {
+  const out = {};
+  BACKUP_CONFIG_KEYS.forEach(k => {
+    if (config && config[k] !== undefined) out[k] = config[k];
+  });
+  return out;
+}
+
+function buildFullBackup() {
+  return {
+    app: 'class-service-manager',
+    format: BACKUP_FORMAT,
+    formatVersion: 1,
+    version: app.getVersion(),
+    backupTime: new Date().toISOString(),
+    tables: loadTables(),
+    roster: loadRoster(),
+    duty: loadDuty(),
+    homework: loadHomework(),
+    config: sanitizeConfigForBackup(loadConfig())
+  };
+}
+
+// 校验备份结构，避免把无关 JSON 或损坏文件导入
+function validateBackupData(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return { ok: false, error: '备份文件内容无法识别' };
+  }
+  if (!Array.isArray(data.tables)) {
+    return { ok: false, error: '备份文件缺少表格数据，可能不是本软件的备份文件' };
+  }
+  for (const t of data.tables) {
+    if (!t || typeof t !== 'object') return { ok: false, error: '备份文件中的表格数据已损坏' };
+    if (!Array.isArray(t.rows) && !Array.isArray(t.score_rows)) {
+      return { ok: false, error: `表格「${t.name || '未命名'}」数据不完整` };
+    }
+  }
+  if (data.roster !== undefined && data.roster !== null) {
+    if (typeof data.roster !== 'object' || (data.roster.students !== undefined && !Array.isArray(data.roster.students))) {
+      return { ok: false, error: '备份文件中的学生名单数据已损坏' };
+    }
+  }
+  if (data.duty !== undefined && data.duty !== null) {
+    if (typeof data.duty !== 'object' || (data.duty.days !== undefined && (typeof data.duty.days !== 'object' || Array.isArray(data.duty.days)))) {
+      return { ok: false, error: '备份文件中的值日表数据已损坏' };
+    }
+  }
+  if (data.homework !== undefined && data.homework !== null) {
+    if (typeof data.homework !== 'object' || (data.homework.records !== undefined && !Array.isArray(data.homework.records))) {
+      return { ok: false, error: '备份文件中的作业登记数据已损坏' };
+    }
+  }
+  if (data.config !== undefined && data.config !== null && typeof data.config !== 'object') {
+    return { ok: false, error: '备份文件中的设置数据已损坏' };
+  }
+  return { ok: true };
+}
+
+function summarizeBackup(data) {
+  const tables = data.tables || [];
+  const byType = { ranking: 0, score: 0, seat: 0 };
+  tables.forEach(t => {
+    const ty = (t && t.type) || 'ranking';
+    byType[ty] = (byType[ty] || 0) + 1;
+  });
+  let dutyDays = 0;
+  if (data.duty && data.duty.days && typeof data.duty.days === 'object') {
+    DUTY_DAYS.forEach(d => {
+      const day = data.duty.days[d];
+      if (day && typeof day === 'object' && Object.keys(day).some(k => Array.isArray(day[k]) && day[k].length)) dutyDays++;
+    });
+  }
+  return {
+    version: data.version || '',
+    backupTime: data.backupTime || '',
+    isFull: data.format === BACKUP_FORMAT,
+    tableCount: tables.length,
+    rankingCount: byType.ranking || 0,
+    scoreCount: byType.score || 0,
+    seatCount: byType.seat || 0,
+    rosterCount: data.roster && Array.isArray(data.roster.students) ? data.roster.students.length : 0,
+    dutyDays,
+    homeworkCount: data.homework && Array.isArray(data.homework.records) ? data.homework.records.length : 0,
+    hasConfig: !!(data.config && typeof data.config === 'object')
+  };
+}
+
+function timestampForFile(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+// 导出全部数据到用户选择的文件夹（U 盘、桌面、任意目录均可）
+ipcMain.handle('backup-export-folder', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择导出文件夹（如 U 盘或备份目录）',
+    buttonLabel: '导出到此文件夹',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) return { success: false, error: '已取消' };
+  try {
+    const folder = result.filePaths[0];
+    const stamp = timestampForFile(new Date());
+    let filePath = path.join(folder, `班级服务-完整备份-${stamp}.json`);
+    let i = 1;
+    while (fs.existsSync(filePath)) {
+      filePath = path.join(folder, `班级服务-完整备份-${stamp}(${i}).json`);
+      i++;
+    }
+    const backup = buildFullBackup();
+    fs.writeFileSync(filePath, JSON.stringify(backup, null, 2), 'utf-8');
+    return { success: true, path: filePath, summary: summarizeBackup(backup) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+// 只读取并校验备份文件，返回摘要，不修改任何数据
+ipcMain.handle('backup-validate', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: '选择要恢复的备份文件',
+    filters: [
+      { name: '备份文件', extensions: ['json'] },
+      { name: '全部文件', extensions: ['*'] }
+    ],
+    properties: ['openFile']
+  });
+  if (result.canceled || !result.filePaths || result.filePaths.length === 0) return { success: false, error: '已取消' };
+  const filePath = result.filePaths[0];
+  try {
+    const raw = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
+    const data = JSON.parse(raw);
+    const check = validateBackupData(data);
+    if (!check.ok) return { success: false, error: check.error };
+    return { success: true, path: filePath, summary: summarizeBackup(data) };
+  } catch (e) {
+    return { success: false, error: '文件读取或解析失败：' + e.message };
+  }
+});
+
+// 按合并 / 覆盖两种策略恢复完整备份；恢复前自动保存当前数据快照
+ipcMain.handle('backup-import-full', async (event, payload = {}) => {
+  try {
+    const filePath = payload && payload.filePath;
+    const mode = payload && payload.mode;
+    if (!filePath || !fs.existsSync(filePath)) return { success: false, error: '备份文件不存在' };
+    if (mode !== 'merge' && mode !== 'overwrite') return { success: false, error: '恢复方式无效' };
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, ''));
+    const check = validateBackupData(data);
+    if (!check.ok) return { success: false, error: check.error };
+
+    // 恢复前快照：完整备份当前数据，失败则终止恢复
+    ensureDataDir();
+    const backupDir = path.join(DATA_DIR, 'backups');
+    if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
+    const preBackupPath = path.join(backupDir, `preimport_${timestampForFile(new Date()).replace(/[-_]/g, '').replace(/(\d{8})(\d{6})/, '$1_$2')}.json`);
+    fs.writeFileSync(preBackupPath, JSON.stringify(buildFullBackup(), null, 2), 'utf-8');
+
+    const existingTables = loadTables();
+    let tablesAdded = 0;
+    let rosterAdded = 0;
+    let dutyFilled = 0;
+    let homeworkAdded = 0;
+
+    if (mode === 'overwrite') {
+      // 覆盖：用备份完全替换当前数据（表格 id 去重，避免内部冲突）
+      const usedIds = new Set();
+      const usedNames = new Set();
+      const newTables = data.tables.map(raw => {
+        const t = migrateTable(JSON.parse(JSON.stringify(raw)));
+        if (!t.id || usedIds.has(t.id)) t.id = crypto.randomUUID();
+        usedIds.add(t.id);
+        let nm = String(t.name || '未命名表格');
+        if (usedNames.has(nm)) {
+          let i = 1;
+          while (usedNames.has(`${nm}(${i})`)) i++;
+          nm = `${nm}(${i})`;
+        }
+        t.name = nm;
+        usedNames.add(nm);
+        return t;
+      });
+      saveTables(newTables);
+      tablesAdded = newTables.length;
+      // 仅恢复备份中确实存在的模块，缺失模块保留当前数据，避免误清空
+      if (data.roster && Array.isArray(data.roster.students)) saveRoster(data.roster);
+      if (data.duty && data.duty.days && typeof data.duty.days === 'object') saveDuty(data.duty);
+      if (data.homework && Array.isArray(data.homework.records)) saveHomework(data.homework);
+      if (data.config && typeof data.config === 'object') {
+        const cur = loadConfig();
+        BACKUP_CONFIG_KEYS.forEach(k => {
+          if (data.config[k] !== undefined) cur[k] = data.config[k];
+        });
+        saveConfig(cur);
+      }
+      rosterAdded = (data.roster && Array.isArray(data.roster.students)) ? data.roster.students.length : 0;
+      homeworkAdded = (data.homework && Array.isArray(data.homework.records)) ? data.homework.records.length : 0;
+    } else {
+      // 合并：只追加不重复的内容，绝不覆盖现有数据
+      const existingNames = new Set(existingTables.map(t => t.name));
+      data.tables.forEach(raw => {
+        const t = migrateTable(JSON.parse(JSON.stringify(raw)));
+        t.id = crypto.randomUUID();
+        let nm = String(t.name || '未命名表格');
+        if (existingNames.has(nm)) {
+          let i = 1;
+          while (existingNames.has(`${nm}(${i})`)) i++;
+          nm = `${nm}(${i})`;
+        }
+        t.name = nm;
+        existingNames.add(nm);
+        existingTables.push(t);
+        tablesAdded++;
+      });
+      if (tablesAdded) saveTables(existingTables);
+
+      // 学生名单：按姓名去重，保留现有记录
+      if (data.roster && Array.isArray(data.roster.students) && data.roster.students.length) {
+        const cur = loadRoster();
+        const names = new Set(cur.students.map(s => s.name));
+        data.roster.students.forEach(s => {
+          const nm = String((s && s.name) || '').trim();
+          if (!nm || names.has(nm)) return;
+          names.add(nm);
+          cur.students.push({
+            id: crypto.randomUUID(),
+            name: nm,
+            group: (s && s.group !== undefined && s.group !== null) ? s.group : '',
+            note: String((s && s.note) || '')
+          });
+          rosterAdded++;
+        });
+        if (rosterAdded) saveRoster(cur);
+      }
+
+      // 值日表：只补全当前为空的时段，已有安排不动
+      if (data.duty && data.duty.days && typeof data.duty.days === 'object') {
+        const cur = loadDuty();
+        DUTY_DAYS.forEach(d => {
+          const srcDay = data.duty.days[d];
+          if (!srcDay || typeof srcDay !== 'object') return;
+          cur.tasks.forEach(task => {
+            if (cur.days[d][task].length > 0) return;
+            const src = Array.isArray(srcDay[task]) ? srcDay[task].map(n => String(n).trim()).filter(Boolean) : [];
+            if (src.length) {
+              cur.days[d][task] = src;
+              dutyFilled++;
+            }
+          });
+        });
+        if (dutyFilled) saveDuty(cur);
+      }
+
+      // 作业登记：按「日期+科目+内容」去重后追加
+      if (data.homework && Array.isArray(data.homework.records) && data.homework.records.length) {
+        const cur = loadHomework();
+        const seen = new Set(cur.records.map(r => [r.date, r.subject, r.content].join('|')));
+        data.homework.records.forEach(r => {
+          if (!r || typeof r !== 'object') return;
+          const key = [String(r.date || ''), String(r.subject || ''), String(r.content || '')].join('|');
+          if (seen.has(key)) return;
+          seen.add(key);
+          cur.records.push({
+            id: crypto.randomUUID(),
+            date: String(r.date || ''),
+            subject: String(r.subject || ''),
+            content: String(r.content || ''),
+            missing: Array.isArray(r.missing) ? r.missing.map(n => String(n)).filter(Boolean) : [],
+            total: Number(r.total) || 0,
+            created_at: r.created_at || new Date().toLocaleString('zh-CN', { hour12: false })
+          });
+          homeworkAdded++;
+        });
+        if (homeworkAdded) saveHomework(cur);
+      }
+    }
+
+    return {
+      success: true,
+      mode,
+      tablesAdded,
+      rosterAdded,
+      dutyFilled,
+      homeworkAdded,
+      total: loadTables().length,
+      preBackupPath
+    };
   } catch (e) {
     return { success: false, error: e.message };
   }
@@ -2339,6 +2891,63 @@ ipcMain.handle('rank-reset', () => {
   const rank = { students: [], exams: [] };
   saveRank(rank);
   return rank;
+});
+
+// ===== 学生名单 / 值日表 / 作业登记 IPC（仅新增） =====
+ipcMain.handle('roster-get', () => loadRoster());
+
+ipcMain.handle('roster-save', (event, roster) => {
+  try {
+    return { success: true, roster: saveRoster(roster) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('duty-get', () => loadDuty());
+
+ipcMain.handle('duty-save', (event, duty) => {
+  try {
+    return { success: true, duty: saveDuty(duty) };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('homework-get', () => loadHomework());
+
+ipcMain.handle('homework-save', (event, record) => {
+  try {
+    const data = loadHomework();
+    const rec = {
+      id: (record && record.id) || crypto.randomUUID(),
+      date: String((record && record.date) || ''),
+      subject: String((record && record.subject) || '').trim(),
+      content: String((record && record.content) || '').trim(),
+      missing: Array.isArray(record && record.missing) ? record.missing.map(n => String(n).trim()).filter(Boolean) : [],
+      total: Number(record && record.total) || 0,
+      created_at: (record && record.created_at) || new Date().toLocaleString('zh-CN', { hour12: false })
+    };
+    const idx = data.records.findIndex(r => r.id === rec.id);
+    if (idx >= 0) data.records[idx] = rec; else data.records.unshift(rec);
+    const saved = saveHomework(data);
+    return { success: true, record: rec, records: saved.records };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('homework-delete', (event, id) => {
+  try {
+    const data = loadHomework();
+    const before = data.records.length;
+    data.records = data.records.filter(r => r.id !== id);
+    if (data.records.length === before) return { success: false, error: '记录不存在' };
+    const saved = saveHomework(data);
+    return { success: true, records: saved.records };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
 });
 
 

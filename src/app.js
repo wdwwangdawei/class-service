@@ -121,7 +121,7 @@ window.app = {
       this.tablesLocked = config.tablesLocked === true;
       this.autoSave = config.autoSave !== false;
       this.autoLock = config.autoLock === true;
-      this.themeSkin = config.themeSkin || 'default';
+      this.themeSkin = config.themeSkin || 'mist';
       this.displayTheme = config.displayTheme || 'light';
     } catch(e) {
       this.soundEnabled = true; this.soundVolume = 50;
@@ -129,7 +129,7 @@ window.app = {
       this.bgmEnabled = false; this.bgmVolume = 30;
     }
     this.applyFont();
-    this.applyTheme(this.themeSkin || 'default', true);
+    this.applyTheme(this.themeSkin || 'mist', true);
     if (this.bgmEnabled) this.startBgm();
   },
 
@@ -137,7 +137,7 @@ window.app = {
   language: 'zh',
   fontFamily: 'Microsoft YaHei',
   bgmEnabled: false,
-  bgmVolume: 30, themeSkin: 'default', displayTheme: 'light', passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false,
+  bgmVolume: 30, themeSkin: 'mist', displayTheme: 'light', passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false,
   bgmAudio: null,
   selectedLang: 'zh',
   selectedFont: 'Microsoft YaHei',
@@ -727,9 +727,17 @@ window.app = {
   },
 
   async enablePassword() {
+    const cfg = await window.electronAPI.getConfig();
+    if (!cfg.passwordSet) {
+      alert('请先设置启动密码：在「修改密码」中设置 4-6 位数字密码，再开启密码保护。');
+      this.showChangePasswordForm();
+      return;
+    }
     const result = await window.electronAPI.togglePassword({ action: 'enable' });
     if (result.success) {
       this.updatePasswordStatus();
+    } else {
+      alert(result.error || '开启失败');
     }
   },
 
@@ -948,7 +956,10 @@ window.app = {
     var newPwd = newInput.value.trim();
     var confirmPwd = confirmInput.value.trim();
 
-    if (!oldPwd) { alert('请输入旧密码'); oldInput.focus(); return; }
+    if (!oldPwd) {
+      const cfg = await window.electronAPI.getConfig();
+      if (cfg.passwordSet) { alert('请输入旧密码'); oldInput.focus(); return; }
+    }
     if (!/^\d{4,6}$/.test(newPwd)) { alert('新密码必须是 4-6 位纯数字'); newInput.focus(); return; }
     if (newPwd !== confirmPwd) { alert('两次输入的新密码不一致'); confirmInput.focus(); return; }
 
@@ -1086,6 +1097,9 @@ window.app = {
       if (id === 'excel-import') title.textContent = '导入 Excel';
       if (id === 'seat-page') title.textContent = '排座位';
       if (id === 'rank-system') { title.textContent = '班级段位（测试版）'; this.showRankBetaNotice(); }
+      if (id === 'roster-page') title.textContent = '学生名单';
+      if (id === 'duty-page') title.textContent = '值日表';
+      if (id === 'homework-page') title.textContent = '作业登记';
     }
     this.updateNav(id);
     this.applyLanguage();
@@ -1105,6 +1119,9 @@ window.app = {
       'new-table': 'manage',
       'editor': 'manage',
       'score-editor': 'manage',
+      'roster-page': 'roster',
+      'duty-page': 'duty',
+      'homework-page': 'homework',
       'password-lock': ''
     };
     var page = pageMap[sectionId] || '';
@@ -1274,6 +1291,7 @@ window.app = {
         const vi = document.querySelector('.version-info');
         if (vi) vi.textContent = 'v' + ver;
       }
+      this.renderHomeDashboard(tables);
     } catch (e) {
       console.warn('首页数据加载失败', e);
     }
@@ -1523,7 +1541,7 @@ window.app = {
     if (nameInput) nameInput.value = table.name || '未命名表格';
     head.innerHTML = '';
     body.innerHTML = '';
-    if (table.type === 'seat') { this.renderSeatTableEditor(table); return; }
+    if (table.type === 'seat') { this.closeQuickScore(); this.renderSeatTableEditor(table); return; }
     this.setSeatActionsVisibility(false);
     // 单元格内容变化（失焦/回车）后即时重算总分与排名
     body.onchange = (e) => this.onEditorCellChange(e);
@@ -1634,6 +1652,9 @@ window.app = {
       }
     }
     this.applyLanguage();
+    this.updateUndoButton();
+    var qsPanel = document.getElementById('quick-score-panel');
+    if (qsPanel && !qsPanel.classList.contains('hidden')) this.renderQuickScore();
   },
 
   // 座位表编辑器模式下隐藏与积分无关的操作按钮
@@ -1641,7 +1662,7 @@ window.app = {
     const actions = document.querySelectorAll('#editor .editor-actions .btn, #editor .editor-actions button');
     actions.forEach(btn => {
       const oc = btn.getAttribute('onclick') || '';
-      if (/autoCalculate|showRankingSummary|batchScoreDialog|scoreTemplatesDialog|showTrendChart|showGroupChart|clearScores|addRow|removeRow/.test(oc)) {
+      if (/autoCalculate|showRankingSummary|batchScoreDialog|openQuickScore|undoLastScore|scoreTemplatesDialog|showTrendChart|showGroupChart|clearScores|addRow|removeRow/.test(oc)) {
         if (seatMode) {
           btn.style.setProperty('display', 'none', 'important');
         } else {
@@ -1939,31 +1960,37 @@ window.app = {
     }
   },
 
-  // ===== 主题皮肤商店 =====
+  // ===== 风格切换 =====
+  themePresets: {
+    mist:     { name: '晨雾蓝', bg: 'linear-gradient(135deg,#eef4ff 0%,#dbe7ff 100%)', primary: '#2563eb', preview: 'linear-gradient(135deg,#e8f0ff,#c9dcff)' },
+    mint:     { name: '薄荷青', bg: 'linear-gradient(135deg,#effaf5 0%,#d5f0e3 100%)', primary: '#0f8a6c', preview: 'linear-gradient(135deg,#e5f8ef,#c4ead7)' },
+    sunset:   { name: '暖阳橙', bg: 'linear-gradient(135deg,#fff7ed 0%,#ffe6c7 100%)', primary: '#d97706', preview: 'linear-gradient(135deg,#fff1df,#ffddb0)' },
+    sakura:   { name: '樱花粉', bg: 'linear-gradient(135deg,#fff1f6 0%,#ffdcea 100%)', primary: '#db2777', preview: 'linear-gradient(135deg,#ffe8f1,#ffd0e2)' },
+    graphite: { name: '墨玉灰', bg: 'linear-gradient(135deg,#f4f6f9 0%,#e0e6ee 100%)', primary: '#475569', preview: 'linear-gradient(135deg,#edf1f5,#d8e0e9)' },
+    forest:   { name: '森野绿', bg: 'linear-gradient(135deg,#f1f8f2 0%,#d8eddc 100%)', primary: '#15803d', preview: 'linear-gradient(135deg,#e8f6eb,#cde9d3)' }
+  },
+  themeOrder: ['mist', 'mint', 'sunset', 'sakura', 'graphite', 'forest'],
+
   showThemeStore() {
     var _m2 = document.getElementById('settings-menu'); if(_m2)_m2.classList.add('hidden');
     var _old = document.getElementById('theme-store-section'); if(_old)_old.remove();
-    const themes = [
-      { id: 'default', name: '默认风', bg: '#eef3f8', primary: '#2c5f8d', img: '' },
-      { id: 'classroom', name: '教室风', bg: '#f5f0e8', primary: '#8b6914', img: '' },
-      { id: 'anime', name: '动漫风', bg: '#fce4ec', primary: '#e91e63', img: '' },
-      { id: 'minimal', name: '简约风', bg: '#fafafa', primary: '#607d8b', img: '' },
-      { id: 'star', name: '星空少女', bg: '#1a2050', primary: '#8ea2ff', img: 'assets/themes/star.png' },
-      { id: 'sea', name: '海边少女', bg: '#cfe8f5', primary: '#0d6e8e', img: 'assets/themes/sea.png' }
-    ];
-    let html = '<div style="max-width:560px;margin:40px auto;padding:24px;background:rgba(255,255,255,.92);border-radius:12px;">';
-    html += '<h2 style="text-align:center;margin-bottom:20px;">🎨 主题皮肤</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">';
-    themes.forEach(th => {
-      var cardStyle = 'padding:26px 16px;border-radius:10px;cursor:pointer;text-align:center;height:70px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:bold;border:2px solid ' + th.primary + ';';
-      if (th.img) {
-        cardStyle += 'background-image:url(\'' + th.img + '\');background-size:cover;background-position:center;color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.7);';
-      } else {
-        cardStyle += 'background:' + th.bg + ';color:' + th.primary + ';';
-      }
-      var active = (this.themeSkin === th.id) ? ';box-shadow:0 0 0 3px #2c5f8d inset;' : '';
-      html += '<div onclick="app.applyTheme(\'' + th.id + '\')" style="' + cardStyle + active + '">' + th.name + '</div>';
+    const presets = this.themePresets || {};
+    const ids = (this.themeOrder && this.themeOrder.length) ? this.themeOrder : Object.keys(presets);
+    let html = '<div style="max-width:640px;margin:36px auto;padding:24px;background:rgba(255,255,255,.94);border-radius:14px;box-shadow:0 8px 30px rgba(15,40,80,.08);">';
+    html += '<h2 style="text-align:center;margin-bottom:6px;">🎨 切换风格</h2>';
+    html += '<p style="text-align:center;color:#8a8f99;font-size:13px;margin-bottom:20px;">选择一种喜欢的界面配色，点击立即生效</p>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">';
+    ids.forEach(id => {
+      const th = presets[id];
+      if (!th) return;
+      const active = (this.themeSkin === id);
+      html += '<div onclick="app.applyTheme(\'' + id + '\')" style="cursor:pointer;border-radius:12px;padding:14px;background:#fff;border:2px solid ' + (active ? th.primary : '#e6e9ef') + ';display:flex;align-items:center;gap:12px;">';
+      html += '<span style="width:38px;height:38px;border-radius:10px;flex:0 0 38px;background:' + th.preview + ';border:1px solid rgba(0,0,0,.06);"></span>';
+      html += '<span style="flex:1;min-width:0;"><b style="display:block;font-size:14px;color:#1b1b1b;">' + th.name + '</b><small style="color:#8a8f99;font-size:12px;">' + (active ? '当前使用中' : '点击应用') + '</small></span>';
+      html += '<span style="color:' + th.primary + ';font-weight:bold;font-size:16px;">' + (active ? '✓' : '') + '</span>';
+      html += '</div>';
     });
-    html += '</div><div style="text-align:center;margin-top:16px;"><button class="btn btn-default" onclick="var s=document.getElementById(\'theme-store-section\');if(s)s.remove();app.backToSettings();">← 返回设置</button></div></div>';
+    html += '</div><div style="text-align:center;margin-top:18px;"><button class="btn btn-default" onclick="var s=document.getElementById(\'theme-store-section\');if(s)s.remove();app.backToSettings();">← 返回设置</button></div></div>';
     const sec = document.getElementById('theme-store-section');
     if (!sec) {
       const s = document.createElement('section');
@@ -1979,33 +2006,21 @@ window.app = {
     document.querySelectorAll('.section').forEach(x => x.classList.remove('active'));
     document.getElementById('theme-store-section').classList.add('active');
     const _thTitle = document.getElementById('header-title');
-    if (_thTitle) _thTitle.textContent = '主题皮肤';
+    if (_thTitle) _thTitle.textContent = '切换风格';
     this.updateNav('password-manage');
   },
 
   applyTheme(id, silent) {
-    const themes = {
-      default: { bg: '#eef3f8', primary: '#2c5f8d' },
-      classroom: { bg: '#f5f0e8', primary: '#8b6914' },
-      anime: { bg: '#fce4ec', primary: '#e91e63' },
-      minimal: { bg: '#fafafa', primary: '#607d8b' },
-      festival: { bg: '#fff3e0', primary: '#ff5722' },
-      star: { primary: '#8ea2ff', isImage: true },
-      sea: { primary: '#0d6e8e', isImage: true }
-    };
-    const th = themes[id] || themes.default;
-    document.body.classList.remove('theme-star', 'theme-sea');
-    if (th.isImage) {
-      document.body.classList.add('theme-' + id);
-      document.body.style.background = '';
-    } else {
-      document.body.style.background = th.bg;
-    }
+    const presets = this.themePresets || {};
+    const first = (this.themeOrder && this.themeOrder[0]) || 'mist';
+    const key = presets[id] ? id : first;
+    const th = presets[key] || { name: '晨雾蓝', bg: '#f3f3f3', primary: '#0f6cbd' };
+    document.body.style.background = th.bg;
     document.documentElement.style.setProperty('--primary-color', th.primary);
-    this.themeSkin = id;
+    this.themeSkin = key;
     this.applyDisplayTheme();
     this.saveConfig();
-    if (!silent) alert('主题已切换为：' + id);
+    if (!silent) alert('风格已切换为：' + th.name);
   },
 
   // ===== 创作者模式 =====
@@ -2357,11 +2372,14 @@ window.app = {
       var appliedRows = [];
       checked.forEach(function(cb) { appliedRows.push(parseInt(cb.dataset.row, 10)); });
 
+      var undoChanges = [];
       for (var i = 0; i < appliedRows.length; i++) {
         var r = table.rows[appliedRows[i]];
         while (r.cells.length <= dayIdx) r.cells.push('');
+        undoChanges.push({ row: appliedRows[i], day: dayIdx, before: r.cells[dayIdx] });
         r.cells[dayIdx] = self.appendScoreToCell(r.cells[dayIdx], delta);
       }
+      self.pushScoreUndo(table.id, undoChanges, '批量' + (delta > 0 ? '加' : '扣') + Math.abs(delta) + '分（' + appliedRows.length + '人）');
       self.recomputeTable(table);
       window.electronAPI.updateTable(table).then(function() {
         self.renderEditor();
@@ -2466,25 +2484,20 @@ window.app = {
 
   applyDisplayTheme() {
     const theme = this.displayTheme || 'light';
-    const imageSkins = { star: true, sea: true };
-    const isImage = !!imageSkins[this.themeSkin];
     document.body.classList.remove('display-dark', 'display-eye');
     if (theme === 'dark') {
       document.body.classList.add('display-dark');
       document.body.style.color = '#eee';
-      document.body.style.background = isImage ? '' : '#1a1a2e';
+      document.body.style.background = '#1a1a2e';
     } else if (theme === 'eye') {
       document.body.classList.add('display-eye');
       document.body.style.color = '#333';
-      document.body.style.background = isImage ? '' : '#c7edcc';
+      document.body.style.background = '#c7edcc';
     } else {
       document.body.style.color = '';
-      if (isImage) {
-        document.body.style.background = '';
-      } else {
-        const skinBgs = { default: '#eef3f8', classroom: '#f5f0e8', anime: '#fce4ec', minimal: '#fafafa', festival: '#fff3e0' };
-        document.body.style.background = skinBgs[this.themeSkin] || '#eef3f8';
-      }
+      const presets = this.themePresets || {};
+      const th = presets[this.themeSkin] || presets[(this.themeOrder && this.themeOrder[0]) || 'mist'];
+      document.body.style.background = th ? th.bg : '#f3f3f3';
     }
   },
 
@@ -2531,7 +2544,7 @@ window.app = {
         tablesLocked: this.tablesLocked === true,
         autoSave: this.autoSave !== false,
         autoLock: this.autoLock === true,
-        themeSkin: this.themeSkin || 'default',
+        themeSkin: this.themeSkin || 'mist',
         displayTheme: this.displayTheme || 'light'
       });
     } catch(e) { console.error('saveConfig failed', e); }
@@ -2790,11 +2803,14 @@ window.app = {
         <span>${tbl.created_at}</span>
         <div class="ops">
           <button class="op-edit" data-id="${tbl.id}">编辑</button>
+          ${(tbl.type || 'ranking') === 'ranking' ? `<button class="op-cycle" data-id="${tbl.id}">下一周期</button>` : ''}
           <button class="op-print" data-id="${tbl.id}">打印</button>
           <button class="op-del" data-id="${tbl.id}">删除</button>
         </div>
       `;
       row.querySelector('.op-edit').onclick = () => this.showTableEditor(tbl.id);
+      const cycleEl = row.querySelector('.op-cycle');
+      if (cycleEl) cycleEl.onclick = () => this.createNextCycle(tbl.id);
       row.querySelector('.op-del').onclick = () => this.deleteTable(tbl.id, tbl.name);
       row.querySelector('.op-print').onclick = () => window.electronAPI.printTable(tbl);
       list.appendChild(row);
@@ -2876,6 +2892,98 @@ window.app = {
       box.style.background = '#ffebee';
       box.style.color = '#c62828';
       box.textContent = `✗ ${result.error || '恢复失败'}`;
+    }
+  },
+
+  // ===== 完整备份：导出到文件夹 / 校验后恢复 =====
+  showBackupMessage(ok, text) {
+    const box = document.getElementById('backup-result');
+    if (!box) return;
+    box.classList.remove('hidden');
+    box.style.background = ok ? 'var(--success-soft)' : 'var(--danger-soft)';
+    box.style.color = ok ? '#0b5a0a' : 'var(--danger)';
+    box.textContent = text;
+  },
+
+  async doFullBackupExport() {
+    try {
+      const result = await window.electronAPI.backupExportFolder();
+      if (!result || !result.success) {
+        if (result && result.error && result.error !== '已取消') this.showBackupMessage(false, '✗ ' + result.error);
+        return;
+      }
+      const s = result.summary || {};
+      const parts = ['表格 ' + (s.tableCount || 0) + ' 个'];
+      if (s.rosterCount) parts.push('学生 ' + s.rosterCount + ' 人');
+      if (s.dutyDays) parts.push('值日 ' + s.dutyDays + ' 天');
+      if (s.homeworkCount) parts.push('作业记录 ' + s.homeworkCount + ' 条');
+      this.showBackupMessage(true, '✓ 完整备份已导出\n' + result.path + '\n内容：' + parts.join(' · '));
+    } catch (e) {
+      this.showBackupMessage(false, '✗ 导出失败：' + e.message);
+    }
+  },
+
+  async doFullBackupRestore() {
+    try {
+      const check = await window.electronAPI.backupValidate();
+      if (!check || !check.success) {
+        if (check && check.error && check.error !== '已取消') this.showBackupMessage(false, '✗ ' + check.error);
+        return;
+      }
+      const s = check.summary || {};
+      let timeText = '未知';
+      if (s.backupTime) {
+        const dt = new Date(s.backupTime);
+        timeText = isNaN(dt.getTime()) ? String(s.backupTime) : dt.toLocaleString('zh-CN', { hour12: false });
+      }
+      const detail = [
+        '备份时间：' + timeText,
+        '软件版本：v' + (s.version || '未知'),
+        '',
+        '内容：' + (s.tableCount || 0) + ' 个表格（量化表 ' + (s.rankingCount || 0) + '、成绩表 ' + (s.scoreCount || 0) + '、座位表 ' + (s.seatCount || 0) + '）',
+        '学生名单 ' + (s.rosterCount || 0) + ' 人 · 值日 ' + (s.dutyDays || 0) + ' 天 · 作业记录 ' + (s.homeworkCount || 0) + ' 条'
+      ].join('\n');
+      const choice = await window.electronAPI.confirmBox({
+        title: '备份校验通过',
+        message: detail + '\n\n请选择恢复方式：\n· 合并：保留现有数据，只追加备份中不重复的内容\n· 覆盖：用备份完全替换当前数据',
+        buttons: ['合并到当前数据', '覆盖当前数据', '取消'],
+        cancelId: 2
+      });
+      if (choice !== 0 && choice !== 1) return;
+      const mode = choice === 0 ? 'merge' : 'overwrite';
+      if (mode === 'overwrite') {
+        const sure = await window.electronAPI.confirmBox({
+          title: '确认覆盖',
+          message: '覆盖后当前所有表格、学生名单、值日表和作业记录都会被备份内容替换。\n\n恢复前会自动保存一份当前数据快照，确认继续吗？',
+          buttons: ['确认覆盖', '取消']
+        });
+        if (sure !== 0) return;
+      }
+      const result = await window.electronAPI.backupImportFull({ filePath: check.path, mode });
+      if (!result || !result.success) {
+        this.showBackupMessage(false, '✗ 恢复失败：' + (result && result.error ? result.error : '未知错误'));
+        return;
+      }
+      let summary;
+      if (mode === 'merge') {
+        const parts = ['新增表格 ' + result.tablesAdded + ' 个'];
+        if (result.rosterAdded) parts.push('学生 ' + result.rosterAdded + ' 人');
+        if (result.dutyFilled) parts.push('值日 ' + result.dutyFilled + ' 项');
+        if (result.homeworkAdded) parts.push('作业记录 ' + result.homeworkAdded + ' 条');
+        summary = '✓ 合并完成：' + parts.join(' · ') + '\n当前共 ' + result.total + ' 个表格';
+      } else {
+        const roster = await window.electronAPI.rosterGet();
+        const homeworks = await window.electronAPI.homeworkGet();
+        summary = '✓ 覆盖恢复完成：当前共 ' + result.total + ' 个表格，学生 ' + ((roster && roster.students) || []).length + ' 人，作业记录 ' + ((homeworks && homeworks.records) || []).length + ' 条';
+      }
+      summary += '\n恢复前快照：' + result.preBackupPath;
+      this.showBackupMessage(true, summary);
+      const tables = await window.electronAPI.loadTables();
+      const cntEl = document.getElementById('table-count');
+      if (cntEl) cntEl.textContent = tables.length;
+      await this.renderHomeRecent(tables);
+    } catch (e) {
+      this.showBackupMessage(false, '✗ 恢复失败：' + e.message);
     }
   },
 
@@ -3475,42 +3583,29 @@ window.app = {
       });
     });
   },
-  // 班级段位测试版提示弹窗（3秒后才能关闭）
+  // 班级段位测试版提示弹窗（Fluent 风格，可立即关闭）
   showRankBetaNotice() {
     if (this._rankBetaShown) return;
     this._rankBetaShown = true;
     var overlay = document.createElement('div');
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:99999;';
+    overlay.className = 'fluent-dialog-overlay';
     var box = document.createElement('div');
-    box.style.cssText = 'background:#fff;border-radius:14px;padding:28px 26px;width:340px;max-width:90vw;box-shadow:0 10px 40px rgba(0,0,0,.3);text-align:center;font-family:"Microsoft YaHei",sans-serif;';
-    box.innerHTML = '<div style="font-size:38px;margin-bottom:10px;">🏅</div>' +
-      '<h2 style="margin:0 0 12px;color:#1f2937;font-size:18px;">班级段位 · 测试版</h2>' +
-      '<p style="margin:0 0 8px;color:#4b5563;font-size:14px;line-height:1.7;">' +
-      '班级段位功能目前处于测试阶段，<br>可能存在一些 bug 或不稳定的地方。</p>' +
-      '<p style="margin:0 0 18px;color:#4b5563;font-size:14px;line-height:1.7;">' +
-      '如果使用中发现任何问题，<br>欢迎及时反馈，帮助我们不断完善 🙏</p>' +
-      '<button id="rank-beta-close" disabled style="padding:9px 36px;border:none;border-radius:8px;background:#cbd5e1;color:#fff;font-size:14px;cursor:not-allowed;transition:all .2s;">我知道了（3s）</button>';
+    box.className = 'fluent-dialog';
+    box.innerHTML = '<div class="fluent-dialog-icon">🏅</div>' +
+      '<h2 class="fluent-dialog-title">班级段位 · 测试版</h2>' +
+      '<p class="fluent-dialog-text">班级段位功能目前处于测试阶段，可能存在一些 bug 或不稳定的地方。</p>' +
+      '<p class="fluent-dialog-text">如果使用中发现任何问题，欢迎及时反馈，帮助我们不断完善 🙏</p>' +
+      '<button type="button" class="fluent-dialog-primary" id="rank-beta-close">我知道了</button>';
     overlay.appendChild(box);
     document.body.appendChild(overlay);
-    var btn = document.getElementById('rank-beta-close');
-    var left = 3;
-    var timer = setInterval(function() {
-      left--;
-      if (left <= 0) {
-        clearInterval(timer);
-        btn.disabled = false;
-        btn.textContent = '我知道了';
-        btn.style.background = '#3b82f6';
-        btn.style.cursor = 'pointer';
-      } else {
-        btn.textContent = '我知道了（' + left + 's）';
-      }
-    }, 1000);
-    btn.onclick = function() {
-      if (btn.disabled) return;
-      clearInterval(timer);
-      document.body.removeChild(overlay);
+    var close = function () {
+      document.removeEventListener('keydown', onKey);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
     };
+    var onKey = function (e) { if (e.key === 'Escape') close(); };
+    document.addEventListener('keydown', onKey);
+    overlay.addEventListener('mousedown', function (e) { if (e.target === overlay) close(); });
+    document.getElementById('rank-beta-close').onclick = close;
   },
 
   // ===== 班级段位系统 =====  rankData: { students: [], exams: [] },
@@ -3842,6 +3937,8 @@ window.app = {
     if (!this._seatBound) {
       this._seatBound = true;
       document.getElementById('seat-import-btn').onclick = function () { self.importScoresForSeating(); };
+      var seatRosterBtn = document.getElementById('seat-roster-btn');
+      if (seatRosterBtn) seatRosterBtn.onclick = function () { self.importRosterForSeating(); };
       document.getElementById('seat-gen-btn').onclick = function () { self.generateSeating(); };
       document.getElementById('seat-print-btn').onclick = function () { self.printSeating(); };
       document.getElementById('seat-img-btn').onclick = function () { self.exportSeatingImage(); };
@@ -4961,6 +5058,46 @@ window.app = {
     });
   },
 
+  // ===== 下一周期：复制姓名与分组，清空积分和排名 =====
+  async createNextCycle(sourceId) {
+    try {
+      if (this.tablesLocked && !this.creatorMode) { alert('表格已被创作者锁定，无法修改。'); return; }
+      let source = null;
+      if (this.editingTable && (!sourceId || this.editingTable.id === sourceId)) source = this.editingTable;
+      else if (sourceId) source = await window.electronAPI.getTable(sourceId);
+      if (!source) { alert('未找到原表格，可能已被删除'); return; }
+      if ((source.type || 'ranking') !== 'ranking') { alert('仅班级量化表支持生成下一周期'); return; }
+
+      // 从编辑器进入时先保存当前修改，确保新表基于最新数据
+      if (this.isEditing && this.editingTable && this.editingTable.id === source.id) {
+        this.collectTableData();
+        await window.electronAPI.updateTable(this.editingTable);
+      }
+
+      const suffix = '（新周期）';
+      const defaultName = (String(source.name) + suffix).length > 60
+        ? String(source.name).slice(0, 60 - suffix.length) + suffix
+        : String(source.name) + suffix;
+      const input = await this.showPrompt(
+        '生成下一周期表格\n\n将保留原表的姓名与分组，清空全部积分和排名，原表格保持不变。\n\n请输入新表格名称：',
+        defaultName
+      );
+      if (input === null) return;
+      const name = String(input).trim();
+      if (!name) { alert('请填写新表格名称'); return; }
+
+      const result = await window.electronAPI.createCycleTable({ sourceId: source.id, name });
+      if (!result || !result.success) {
+        alert('生成失败：' + (result && result.error ? result.error : '未知错误'));
+        return;
+      }
+      await this.showTableEditor(result.table.id);
+      if (result.renamed) alert('已存在同名表格，新表名自动调整为：' + result.table.name);
+    } catch (e) {
+      alert('生成下一周期失败：' + (e && e.message ? e.message : e));
+    }
+  },
+
   // ===== 增加一行 =====
   async addRow() {
     if (this.tablesLocked && !this.creatorMode) { alert('表格已被创作者锁定，无法修改。'); return; }
@@ -5117,6 +5254,914 @@ window.app = {
     document.getElementById('pwd-confirm-error').textContent = '';
     document.getElementById('pwd-confirm-modal').classList.add('hidden');
     if (this.pwdCallback) { this.pwdCallback(false); this.pwdCallback = null; }
+  },
+
+  // =========================================================================
+  // 通用提示
+  // =========================================================================
+  showToast(message, type) {
+    var old = document.getElementById('app-toast');
+    if (old) old.remove();
+    var div = document.createElement('div');
+    div.id = 'app-toast';
+    div.className = 'app-toast' + (type ? ' toast-' + type : '');
+    div.textContent = message;
+    document.body.appendChild(div);
+    requestAnimationFrame(function () { div.classList.add('show'); });
+    setTimeout(function () {
+      div.classList.remove('show');
+      setTimeout(function () { if (div.parentNode) div.remove(); }, 220);
+    }, 2200);
+  },
+
+  // 将 ISO 时间转为本机时区的 YYYY-MM-DD HH:mm
+  fmtLocal(value) {
+    if (!value) return '';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value).slice(0, 16).replace('T', ' ');
+    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+      ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  },
+
+  // =========================================================================
+  // 方案 1：统一学生名单
+  // =========================================================================
+  roster: { version: 1, updated_at: '', students: [] },
+
+  async showRosterPage() {
+    this.showSection('roster-page');
+    await this.loadRosterPage();
+  },
+
+  async loadRosterPage() {
+    try {
+      var data = await window.electronAPI.rosterGet();
+      this.roster = (data && Array.isArray(data.students)) ? data : { version: 1, updated_at: '', students: [] };
+    } catch (e) {
+      this.roster = { version: 1, updated_at: '', students: [] };
+    }
+    this.renderRosterList();
+    await this.fillRosterTableSelect();
+  },
+
+  async fillRosterTableSelect() {
+    var sel = document.getElementById('roster-apply-table');
+    if (!sel) return;
+    try {
+      var tables = await window.electronAPI.loadTables();
+      var rankings = (tables || []).filter(function (t) { return (t.type || 'ranking') === 'ranking'; });
+      var current = sel.value;
+      sel.innerHTML = '<option value="">选择量化表</option>' + rankings.map(function (t) {
+        return '<option value="' + escapeHtml(t.id) + '">' + escapeHtml(t.name || '未命名表格') + '</option>';
+      }).join('');
+      if (current) sel.value = current;
+    } catch (e) { /* 忽略读取失败 */ }
+  },
+
+  renderRosterList() {
+    var list = document.getElementById('roster-list');
+    var stats = document.getElementById('roster-stats');
+    if (!list) return;
+    var students = (this.roster && this.roster.students) || [];
+    if (stats) {
+      stats.textContent = students.length
+        ? ('共 ' + students.length + ' 名学生' + (this.roster.updated_at ? ' · 最近保存 ' + this.fmtLocal(this.roster.updated_at) : ''))
+        : '暂无学生，添加或导入名单后会自动保存';
+    }
+    if (!students.length) {
+      list.innerHTML = '<div class="dash-empty">名单为空，可在上方输入姓名，或从 Excel / 量化表导入</div>';
+      return;
+    }
+    var self = this;
+    list.innerHTML = students.map(function (s, i) {
+      return '<div class="roster-row" data-index="' + i + '">' +
+        '<span class="roster-no">' + (i + 1) + '</span>' +
+        '<input class="roster-name" data-field="name" value="' + escapeHtml(s.name) + '" maxlength="20">' +
+        '<input class="roster-group" data-field="group" value="' + escapeHtml(s.group === undefined || s.group === null ? '' : s.group) + '" placeholder="组" maxlength="4">' +
+        '<input class="roster-note" data-field="note" value="' + escapeHtml(s.note || '') + '" placeholder="备注（可选）" maxlength="40">' +
+        '<button class="btn btn-sm btn-danger" data-del="' + i + '">删除</button>' +
+        '</div>';
+    }).join('');
+    list.querySelectorAll('input').forEach(function (inp) {
+      inp.onchange = function () {
+        var rowEl = inp.closest('.roster-row');
+        var idx = parseInt(rowEl.dataset.index, 10);
+        var st = self.roster.students[idx];
+        if (!st) return;
+        var val = inp.value.trim();
+        if (inp.dataset.field === 'name' && !val) {
+          self.roster.students.splice(idx, 1);
+          self.renderRosterList();
+          self.rosterPersist();
+          return;
+        }
+        st[inp.dataset.field] = val;
+        self.rosterPersist();
+      };
+    });
+    list.querySelectorAll('button[data-del]').forEach(function (btn) {
+      btn.onclick = function () {
+        var idx = parseInt(btn.dataset.del, 10);
+        self.roster.students.splice(idx, 1);
+        self.renderRosterList();
+        self.rosterPersist();
+      };
+    });
+  },
+
+  async rosterPersist() {
+    try {
+      var res = await window.electronAPI.rosterSave(this.roster);
+      if (res && res.success) this.roster = res.roster;
+      else if (res && res.error) this.showToast('保存名单失败：' + res.error, 'error');
+    } catch (e) {
+      this.showToast('保存名单失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  },
+
+  rosterAddStudent() {
+    var inp = document.getElementById('roster-name-input');
+    if (!inp) return;
+    var name = (inp.value || '').trim();
+    if (!name) { inp.focus(); return; }
+    if ((this.roster.students || []).some(function (s) { return s.name === name; })) {
+      this.showToast('名单中已有「' + name + '」', 'warn');
+      inp.select();
+      return;
+    }
+    this.roster.students.push({ id: '', name: name, group: '', note: '' });
+    inp.value = '';
+    this.renderRosterList();
+    this.rosterPersist();
+    inp.focus();
+  },
+
+  rosterBatchImport() {
+    var self = this;
+    var old = document.getElementById('roster-batch-modal');
+    if (old) old.remove();
+    var mask = document.createElement('div');
+    mask.id = 'roster-batch-modal';
+    mask.className = 'fluent-dialog-overlay';
+    mask.innerHTML = '<div class="fluent-dialog roster-batch-dialog">' +
+      '<h3>批量添加学生</h3>' +
+      '<p class="dialog-tip">每行一个姓名，也支持用逗号、顿号或空格分隔</p>' +
+      '<textarea id="roster-batch-text" rows="8" placeholder="张三\n李四\n王五"></textarea>' +
+      '<div class="dialog-actions">' +
+      '<button class="btn btn-sm" data-act="cancel">取消</button>' +
+      '<button class="btn btn-primary btn-sm" data-act="ok">导入</button>' +
+      '</div></div>';
+    document.body.appendChild(mask);
+    var ta = mask.querySelector('#roster-batch-text');
+    ta.focus();
+    function close() { mask.remove(); }
+    mask.querySelector('[data-act="cancel"]').onclick = close;
+    mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
+    mask.querySelector('[data-act="ok"]').onclick = function () {
+      var parts = (ta.value || '').split(/[\n\r,，、;；\s]+/).map(function (v) { return v.trim(); }).filter(Boolean);
+      if (!parts.length) { self.showToast('请先粘贴或输入姓名', 'warn'); ta.focus(); return; }
+      var added = 0;
+      parts.forEach(function (name) {
+        if (!(self.roster.students || []).some(function (s) { return s.name === name; })) {
+          self.roster.students.push({ id: '', name: name, group: '', note: '' });
+          added++;
+        }
+      });
+      close();
+      self.renderRosterList();
+      self.rosterPersist();
+      self.showToast('已添加 ' + added + ' 名学生' + (added < parts.length ? '（重复的已跳过）' : ''), 'ok');
+    };
+    mask.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+  },
+
+  async rosterImportExcel() {
+    try {
+      var res = await window.electronAPI.importNames();
+      if (!res || !res.success) {
+        if (res && res.error && res.error !== '已取消') this.showToast(res.error, 'error');
+        return;
+      }
+      var added = 0;
+      (res.names || []).forEach(function (raw) {
+        var name = String(raw || '').trim();
+        if (!name) return;
+        if (!(this.roster.students || []).some(function (s) { return s.name === name; })) {
+          this.roster.students.push({ id: '', name: name, group: '', note: '' });
+          added++;
+        }
+      }, this);
+      this.renderRosterList();
+      await this.rosterPersist();
+      this.showToast('已从 Excel 导入 ' + added + ' 名学生', 'ok');
+    } catch (e) {
+      this.showToast('导入失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  },
+
+  async rosterImportFromTable() {
+    try {
+      var tables = await window.electronAPI.loadTables();
+      var rankings = (tables || []).filter(function (t) { return (t.type || 'ranking') === 'ranking'; });
+      if (!rankings.length) { this.showToast('暂无量化表可导入', 'warn'); return; }
+      var sel = document.getElementById('roster-apply-table');
+      var targetId = sel ? sel.value : '';
+      var table = rankings.find(function (t) { return t.id === targetId; }) || rankings[rankings.length - 1];
+      var names = (table.rows || []).map(function (r) { return r && String(r.name || '').trim(); })
+        .filter(function (n) { return n && n !== '——'; });
+      if (!names.length) { this.showToast('该表格还没有学生姓名', 'warn'); return; }
+      var added = 0;
+      names.forEach(function (name) {
+        if (!(this.roster.students || []).some(function (s) { return s.name === name; })) {
+          this.roster.students.push({ id: '', name: name, group: '', note: '' });
+          added++;
+        }
+      }, this);
+      this.renderRosterList();
+      await this.rosterPersist();
+      this.showToast('已从「' + (table.name || '量化表') + '」导入 ' + added + ' 名学生', 'ok');
+    } catch (e) {
+      this.showToast('导入失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  },
+
+  async rosterApplyToTable() {
+    var sel = document.getElementById('roster-apply-table');
+    var tableId = sel ? sel.value : '';
+    if (!tableId) { this.showToast('请先选择要应用的量化表', 'warn'); return; }
+    var students = (this.roster.students || []).filter(function (s) { return s.name; });
+    if (!students.length) { this.showToast('学生名单为空', 'warn'); return; }
+    try {
+      var tables = await window.electronAPI.loadTables();
+      var table = (tables || []).find(function (t) { return t.id === tableId; });
+      if (!table) { this.showToast('表格不存在，可能已被删除', 'error'); return; }
+      var rows = table.rows || [];
+      var i = 0;
+      rows.forEach(function (r) {
+        var n = r && String(r.name || '').trim();
+        if ((!n || n === '——') && i < students.length) {
+          r.name = students[i].name;
+          i++;
+        }
+      });
+      var maxGroup = rows.length ? Math.max.apply(null, rows.map(function (r) { return r.group || 1; })) : 1;
+      var mpg = Number(table.members_per_group) || 6;
+      while (i < students.length) {
+        var lastSize = rows.filter(function (r) { return (r.group || 1) === maxGroup; }).length;
+        var g = lastSize >= mpg ? maxGroup + 1 : maxGroup;
+        if (g !== maxGroup) maxGroup = g;
+        rows.push({ group: g, name: students[i].name, personal_rank: '', total_score: 0, cells: WEEK_LABELS.map(function () { return ''; }) });
+        i++;
+      }
+      table.rows = rows;
+      table.total_people = rows.length;
+      table.num_groups = rows.reduce(function (m, r) { return Math.max(m, r.group || 1); }, 1);
+      this.recomputeTable(table);
+      await window.electronAPI.updateTable(table);
+      this.showToast('已将 ' + students.length + ' 名学生应用到「' + (table.name || '量化表') + '」', 'ok');
+      this.addLog('应用学生名单', (table.name || '') + '：' + students.length + ' 人');
+    } catch (e) {
+      this.showToast('应用失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  },
+
+  async rosterClear() {
+    if (!(this.roster.students || []).length) { this.showToast('名单已经是空的', 'warn'); return; }
+    var r = await window.electronAPI.confirmBox({
+      title: '清空名单',
+      message: '确定清空全部学生名单吗？已有表格中的数据不会受影响。',
+      buttons: ['清空', '取消']
+    });
+    if (r !== 0) return;
+    this.roster.students = [];
+    this.renderRosterList();
+    await this.rosterPersist();
+    this.showToast('名单已清空', 'ok');
+  },
+
+  async importRosterForSeating() {
+    var info = document.getElementById('seat-info');
+    var err = document.getElementById('seat-error');
+    if (err) err.textContent = '';
+    try {
+      var data = await window.electronAPI.rosterGet();
+      var students = ((data && data.students) || []).filter(function (s) { return s && s.name; });
+      if (!students.length) {
+        if (err) err.textContent = '学生名单为空，请先在「学生名单」中添加学生';
+        return;
+      }
+      this.seatStudents = students.map(function (s, i) {
+        return { name: s.name, value: 0, score: 0, rank: i + 1 };
+      });
+      this.seatSortMode = 'random';
+      this.seatSortColumn = '学生名单';
+      this.seatGrid = null;
+      this.renderSeatChart();
+      if (info) info.textContent = '已从学生名单导入 ' + students.length + ' 人，点击「生成座位表」开始排座';
+    } catch (e) {
+      if (err) err.textContent = '导入失败：' + (e && e.message ? e.message : e);
+    }
+  },
+
+  // =========================================================================
+  // 方案 8：值日表
+  // =========================================================================
+  duty: null,
+
+  async showDutyPage() {
+    this.showSection('duty-page');
+    await this.loadDutyPage();
+  },
+
+  async loadDutyPage() {
+    try {
+      var data = await window.electronAPI.dutyGet();
+      this.duty = (data && data.days) ? data : null;
+    } catch (e) {
+      this.duty = null;
+    }
+    this.renderDutyTable();
+  },
+
+  renderDutyTable() {
+    var wrap = document.getElementById('duty-table-wrap');
+    if (!wrap) return;
+    var self = this;
+    var duty = this.duty || { tasks: ['扫地', '拖地', '擦黑板'], days: {}, updated_at: '' };
+    var tasks = (duty.tasks && duty.tasks.length) ? duty.tasks : ['扫地', '拖地', '擦黑板'];
+    var days = duty.days || {};
+    var dayNames = ['周一', '周二', '周三', '周四', '周五'];
+    var html = '<table class="duty-table"><thead><tr><th class="duty-day-col">星期</th>' +
+      tasks.map(function (t) { return '<th>' + escapeHtml(t) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    dayNames.forEach(function (d) {
+      html += '<tr><td class="duty-day">' + d + '</td>';
+      tasks.forEach(function (t) {
+        var list = (days[d] && days[d][t]) || [];
+        html += '<td><input class="duty-input" data-day="' + escapeHtml(d) + '" data-task="' + escapeHtml(t) + '" value="' + escapeHtml(list.join('、')) + '" placeholder="点击填写或自动排班"></td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.duty-input').forEach(function (inp) {
+      inp.onchange = function () {
+        if (!self.duty) self.duty = { version: 1, tasks: tasks.slice(), days: {} };
+        if (!self.duty.tasks || !self.duty.tasks.length) self.duty.tasks = tasks.slice();
+        if (!self.duty.days) self.duty.days = {};
+        if (!self.duty.days[inp.dataset.day]) self.duty.days[inp.dataset.day] = {};
+        self.duty.days[inp.dataset.day][inp.dataset.task] = inp.value.split(/[、,，;；\s]+/).map(function (v) { return v.trim(); }).filter(Boolean);
+        self.setDutyStatus('有未保存的修改，点击「保存」生效');
+      };
+    });
+    var status = document.getElementById('duty-status');
+    if (status) {
+      status.textContent = duty.updated_at
+        ? '最近保存：' + this.fmtLocal(duty.updated_at)
+        : '尚未保存';
+    }
+  },
+
+  setDutyStatus(text) {
+    var el = document.getElementById('duty-status');
+    if (el) el.textContent = text || '';
+  },
+
+  async autoArrangeDuty() {
+    var names = await this.getStudentNamesForModule();
+    if (!names.length) { this.showToast('学生名单为空，请先在「学生名单」中添加学生', 'warn'); return; }
+    var shuffled = shuffle(names.slice());
+    var days = ['周一', '周二', '周三', '周四', '周五'];
+    var tasks = ['扫地', '拖地', '擦黑板'];
+    var assigned = {};
+    days.forEach(function (d) {
+      assigned[d] = {};
+      tasks.forEach(function (t) { assigned[d][t] = []; });
+    });
+    shuffled.forEach(function (name, i) {
+      assigned[days[i % days.length]][tasks[Math.floor(i / days.length) % tasks.length]].push(name);
+    });
+    this.duty = { version: 1, updated_at: '', tasks: tasks.slice(), days: assigned };
+    this.renderDutyTable();
+    await this.saveDuty(true);
+    this.showToast('已自动排好值日表（共 ' + shuffled.length + ' 人）', 'ok');
+  },
+
+  async saveDuty(silent) {
+    if (!this.duty) {
+      if (!silent) this.showToast('暂无值日数据，请先自动排班或填写人员', 'warn');
+      return;
+    }
+    try {
+      var res = await window.electronAPI.dutySave(this.duty);
+      if (res && res.success) {
+        this.duty = res.duty;
+        this.setDutyStatus('已保存 · ' + this.fmtLocal(res.duty.updated_at));
+        if (!silent) this.showToast('值日表已保存', 'ok');
+        this.addLog('保存值日表', '');
+      } else {
+        this.showToast('保存失败：' + ((res && res.error) || '未知错误'), 'error');
+      }
+    } catch (e) {
+      this.showToast('保存失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  },
+
+  printDuty() {
+    if (!this.duty) { this.showToast('请先生成或填写值日表', 'warn'); return; }
+    window.print();
+  },
+
+  // =========================================================================
+  // 方案 8：作业登记
+  // =========================================================================
+  hwMissing: [],
+  hwStudentNames: [],
+
+  async showHomeworkPage() {
+    this.showSection('homework-page');
+    await this.loadHomeworkPage();
+  },
+
+  async loadHomeworkPage() {
+    var dateEl = document.getElementById('hw-date');
+    if (dateEl && !dateEl.value) {
+      var d = new Date();
+      var p = function (n) { return n < 10 ? '0' + n : '' + n; };
+      dateEl.value = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    }
+    await this.renderHomeworkStudents();
+    await this.renderHomeworkRecords();
+  },
+
+  async renderHomeworkStudents() {
+    var box = document.getElementById('hw-students');
+    if (!box) return;
+    var names = await this.getStudentNamesForModule();
+    this.hwStudentNames = names;
+    if (!names.length) {
+      box.innerHTML = '<div class="dash-empty">学生名单为空，请先在「学生名单」中添加学生</div>';
+      this.updateHwCurrent();
+      return;
+    }
+    if (!Array.isArray(this.hwMissing)) this.hwMissing = [];
+    var self = this;
+    box.innerHTML = names.map(function (n) {
+      return '<button class="hw-chip" data-name="' + escapeHtml(n) + '">' + escapeHtml(n) + '</button>';
+    }).join('');
+    box.querySelectorAll('.hw-chip').forEach(function (btn) {
+      btn.classList.toggle('missing', self.hwMissing.indexOf(btn.dataset.name) >= 0);
+      btn.onclick = function () {
+        var name = btn.dataset.name;
+        var idx = self.hwMissing.indexOf(name);
+        if (idx >= 0) self.hwMissing.splice(idx, 1);
+        else self.hwMissing.push(name);
+        btn.classList.toggle('missing', idx < 0);
+        self.updateHwCurrent();
+      };
+    });
+    this.updateHwCurrent();
+  },
+
+  updateHwCurrent() {
+    var el = document.getElementById('hw-current');
+    if (!el) return;
+    var total = (this.hwStudentNames || []).length;
+    if (!total) { el.textContent = ''; return; }
+    var missing = (this.hwMissing || []).filter(function (n) {
+      return (this.hwStudentNames || []).indexOf(n) >= 0;
+    }, this);
+    el.innerHTML = '共 <b>' + total + '</b> 人 · 已交 <b>' + (total - missing.length) + '</b> 人 · 未交 <b class="hw-missing-count">' + missing.length + '</b> 人' +
+      (missing.length ? '：<span class="hw-missing-names">' + missing.map(escapeHtml).join('、') + '</span>' : '');
+  },
+
+  hwSelectAll() {
+    if (!(this.hwStudentNames || []).length) { this.showToast('暂无学生', 'warn'); return; }
+    this.hwMissing = this.hwStudentNames.slice();
+    document.querySelectorAll('#hw-students .hw-chip').forEach(function (b) { b.classList.add('missing'); });
+    this.updateHwCurrent();
+  },
+
+  hwSelectNone() {
+    this.hwMissing = [];
+    document.querySelectorAll('#hw-students .hw-chip').forEach(function (b) { b.classList.remove('missing'); });
+    this.updateHwCurrent();
+  },
+
+  resetHomeworkForm() {
+    var subj = document.getElementById('hw-subject');
+    var cont = document.getElementById('hw-content');
+    if (subj) subj.value = '';
+    if (cont) cont.value = '';
+    this.hwMissing = [];
+    document.querySelectorAll('#hw-students .hw-chip').forEach(function (b) { b.classList.remove('missing'); });
+    this.updateHwCurrent();
+  },
+
+  async saveHomeworkRecord() {
+    var subject = (document.getElementById('hw-subject').value || '').trim();
+    var content = (document.getElementById('hw-content').value || '').trim();
+    var date = (document.getElementById('hw-date').value || '').trim();
+    if (!subject) { this.showToast('请填写科目', 'warn'); return; }
+    if (!date) { this.showToast('请选择日期', 'warn'); return; }
+    var total = (this.hwStudentNames || []).length;
+    var missing = (this.hwMissing || []).filter(function (n) {
+      return (this.hwStudentNames || []).indexOf(n) >= 0;
+    }, this);
+    try {
+      var res = await window.electronAPI.homeworkSave({ date: date, subject: subject, content: content, missing: missing, total: total });
+      if (!res || !res.success) { this.showToast('保存失败：' + ((res && res.error) || '未知错误'), 'error'); return; }
+      this.showToast('已登记「' + subject + '」，未交 ' + missing.length + ' 人', 'ok');
+      this.resetHomeworkForm();
+      await this.renderHomeworkRecords(res.records);
+      this.addLog('作业登记', subject + (content ? ' ' + content : '') + '，未交 ' + missing.length + ' 人');
+    } catch (e) {
+      this.showToast('保存失败：' + (e && e.message ? e.message : e), 'error');
+    }
+  },
+
+  async renderHomeworkRecords(records) {
+    var box = document.getElementById('hw-records');
+    if (!box) return;
+    if (!records) {
+      try {
+        var data = await window.electronAPI.homeworkGet();
+        records = (data && data.records) || [];
+      } catch (e) {
+        records = [];
+      }
+    }
+    this.hwRecords = records;
+    if (!records.length) { box.innerHTML = '<div class="dash-empty">暂无登记记录</div>'; return; }
+    var self = this;
+    var sorted = records.slice().sort(function (a, b) {
+      var ka = String(a.date || '') + String(a.created_at || '');
+      var kb = String(b.date || '') + String(b.created_at || '');
+      return kb.localeCompare(ka);
+    }).slice(0, 30);
+    box.innerHTML = sorted.map(function (r) {
+      var total = Number(r.total) || 0;
+      var miss = (r.missing || []).length;
+      var rate = total ? Math.round((total - miss) / total * 100) : 0;
+      return '<div class="hw-record">' +
+        '<div class="hw-record-main">' +
+        '<div class="hw-record-title">' + escapeHtml(r.subject) + (r.content ? ' · ' + escapeHtml(r.content) : '') + '</div>' +
+        '<div class="hw-record-meta">' + escapeHtml(r.date) + ' · 已交 ' + (total - miss) + '/' + total + '（' + rate + '%）' + (r.created_at ? ' · 登记于 ' + escapeHtml(self.fmtLocal(r.created_at)) : '') + '</div>' +
+        (miss ? '<div class="hw-record-missing">未交：' + (r.missing || []).map(escapeHtml).join('、') + '</div>' : '<div class="hw-record-missing all-done">全部已交</div>') +
+        '</div>' +
+        '<button class="btn btn-sm btn-danger" data-del="' + escapeHtml(r.id) + '">删除</button>' +
+        '</div>';
+    }).join('');
+    box.querySelectorAll('button[data-del]').forEach(function (btn) {
+      btn.onclick = async function () {
+        var cf = await window.electronAPI.confirmBox({
+          title: '删除记录',
+          message: '确定删除这条作业登记记录吗？',
+          buttons: ['删除', '取消']
+        });
+        if (cf !== 0) return;
+        try {
+          var res = await window.electronAPI.homeworkDelete(btn.dataset.del);
+          if (res && res.success) {
+            self.showToast('记录已删除', 'ok');
+            await self.renderHomeworkRecords(res.records);
+          } else {
+            self.showToast('删除失败：' + ((res && res.error) || '未知错误'), 'error');
+          }
+        } catch (e) {
+          self.showToast('删除失败：' + (e && e.message ? e.message : e), 'error');
+        }
+      };
+    });
+  },
+
+  async getStudentNamesForModule() {
+    try {
+      var data = await window.electronAPI.rosterGet();
+      var names = ((data && data.students) || []).map(function (s) { return s && String(s.name || '').trim(); }).filter(Boolean);
+      if (names.length) return names;
+    } catch (e) { /* 名单读取失败时回退到量化表 */ }
+    try {
+      var tables = await window.electronAPI.loadTables();
+      var rankings = (tables || []).filter(function (t) { return (t.type || 'ranking') === 'ranking'; });
+      var latest = rankings[rankings.length - 1];
+      if (latest) {
+        return (latest.rows || []).map(function (r) { return r && String(r.name || '').trim(); })
+          .filter(function (n) { return n && n !== '——'; });
+      }
+    } catch (e) { /* ignore */ }
+    return [];
+  },
+
+  // =========================================================================
+  // 方案 2：首页数据看板
+  // =========================================================================
+  async renderHomeDashboard(tables) {
+    var trendEl = document.getElementById('dash-trend');
+    if (!trendEl) return;
+    try {
+      if (!tables) tables = await window.electronAPI.loadTables();
+      var rankings = (tables || []).filter(function (t) { return (t.type || 'ranking') === 'ranking'; });
+      // 优先取最近一张有学生姓名的量化表，避免看板读取到空白模板
+      var latest = null;
+      for (var ri = rankings.length - 1; ri >= 0; ri--) {
+        var hasNamed = (rankings[ri].rows || []).some(function (r) {
+          var n = r && String(r.name || '').trim();
+          return n && n !== '——';
+        });
+        if (hasNamed) { latest = rankings[ri]; break; }
+      }
+      if (!latest && rankings.length) latest = rankings[rankings.length - 1];
+      if (!latest) {
+        trendEl.innerHTML = '<div class="dash-empty">暂无量化表数据</div>';
+        var ge = document.getElementById('dash-groups');
+        if (ge) ge.innerHTML = '<div class="dash-empty">暂无小组数据</div>';
+        var pe = document.getElementById('dash-students');
+        if (pe) pe.innerHTML = '<div class="dash-empty">暂无个人数据</div>';
+      } else {
+        var dayTotals = WEEK_LABELS.map(function () { return 0; });
+        (latest.rows || []).forEach(function (r) {
+          (r.cells || []).forEach(function (c, di) {
+            if (di < dayTotals.length) dayTotals[di] += parseCellScore(c);
+          });
+        });
+        var maxDay = Math.max.apply(null, dayTotals.concat([0]));
+        trendEl.innerHTML = WEEK_LABELS.map(function (label, di) {
+          var v = Math.round(dayTotals[di] * 100) / 100;
+          var h = maxDay > 0 ? Math.max(4, Math.round(Math.max(0, v) / maxDay * 108)) : 4;
+          var short = label.replace('第1周', '1/').replace('第2周', '2/').replace('周', '');
+          return '<div class="dash-bar-col" title="' + escapeHtml(label) + '：' + v + ' 分">' +
+            '<span class="dash-bar-value">' + (v ? v : '') + '</span>' +
+            '<div class="dash-bar' + (v < 0 ? ' neg' : '') + '" style="height:' + h + 'px"></div>' +
+            '<span class="dash-bar-label">' + escapeHtml(short) + '</span>' +
+            '</div>';
+        }).join('');
+
+        var groups = Object.keys(latest.group_scores || {}).map(function (g) {
+          return { group: Number(g), score: Number(latest.group_scores[g]) || 0 };
+        });
+        groups.sort(function (a, b) { return b.score - a.score; });
+        var maxG = groups.length ? Math.max.apply(null, groups.map(function (g) { return g.score; })) : 0;
+        var gEl = document.getElementById('dash-groups');
+        if (gEl) {
+          if (!groups.length) {
+            gEl.innerHTML = '<div class="dash-empty">暂无小组数据</div>';
+          } else {
+            gEl.innerHTML = groups.slice(0, 8).map(function (g, i) {
+              var pct = maxG > 0 ? Math.max(3, Math.round(Math.max(0, g.score) / maxG * 100)) : 3;
+              return '<div class="dash-rank-row">' +
+                '<span class="dash-rank-no' + (i < 3 ? ' top' + (i + 1) : '') + '">' + (i + 1) + '</span>' +
+                '<span class="dash-rank-name">第' + g.group + '组</span>' +
+                '<div class="dash-rank-bar"><i style="width:' + pct + '%"></i></div>' +
+                '<span class="dash-rank-score">' + g.score + '</span>' +
+                '</div>';
+            }).join('');
+          }
+        }
+
+        var people = (latest.rows || []).filter(function (r) {
+          return r && r.name && String(r.name).trim() !== '——';
+        }).map(function (r) {
+          return { name: String(r.name), score: Number(r.total_score) || 0 };
+        });
+        people.sort(function (a, b) { return b.score - a.score; });
+        var pEl = document.getElementById('dash-students');
+        if (pEl) {
+          if (!people.length) {
+            pEl.innerHTML = '<div class="dash-empty">暂无个人数据</div>';
+          } else {
+            var maxS = people[0].score || 0;
+            pEl.innerHTML = people.slice(0, 8).map(function (s, i) {
+              var pct = maxS > 0 ? Math.max(3, Math.round(Math.max(0, s.score) / maxS * 100)) : 3;
+              return '<div class="dash-rank-row">' +
+                '<span class="dash-rank-no' + (i < 3 ? ' top' + (i + 1) : '') + '">' + (i + 1) + '</span>' +
+                '<span class="dash-rank-name">' + escapeHtml(s.name) + '</span>' +
+                '<div class="dash-rank-bar"><i style="width:' + pct + '%"></i></div>' +
+                '<span class="dash-rank-score">' + s.score + '</span>' +
+                '</div>';
+            }).join('');
+          }
+        }
+      }
+
+      var rosterCount = 0, dutyDays = 0, hwCount = 0, hwMissingCount = 0;
+      try {
+        var roster = await window.electronAPI.rosterGet();
+        rosterCount = ((roster && roster.students) || []).length;
+      } catch (e) { /* ignore */ }
+      try {
+        var duty = await window.electronAPI.dutyGet();
+        Object.keys((duty && duty.days) || {}).forEach(function (d) {
+          if (Object.keys(duty.days[d] || {}).some(function (t) { return (duty.days[d][t] || []).length; })) dutyDays++;
+        });
+      } catch (e) { /* ignore */ }
+      try {
+        var hw = await window.electronAPI.homeworkGet();
+        var recs = (hw && hw.records) || [];
+        hwCount = recs.length;
+        if (recs.length) {
+          var sortedRecs = recs.slice().sort(function (a, b) {
+            return String(b.created_at || b.date || '').localeCompare(String(a.created_at || a.date || ''));
+          });
+          hwMissingCount = (sortedRecs[0].missing || []).length;
+        }
+      } catch (e) { /* ignore */ }
+      var modEl = document.getElementById('dash-modules');
+      if (modEl) {
+        modEl.innerHTML =
+          '<button class="dash-module" onclick="app.showRosterPage()"><span class="dash-module-ico ico-blue">人</span><span class="dash-module-text"><b>学生名单</b><small>' + (rosterCount ? rosterCount + ' 名学生' : '尚未添加') + '</small></span></button>' +
+          '<button class="dash-module" onclick="app.showDutyPage()"><span class="dash-module-ico ico-green">值</span><span class="dash-module-text"><b>值日表</b><small>' + (dutyDays ? dutyDays + ' 天已排班' : '尚未排班') + '</small></span></button>' +
+          '<button class="dash-module" onclick="app.showHomeworkPage()"><span class="dash-module-ico ico-amber">作</span><span class="dash-module-text"><b>作业登记</b><small>' + (hwCount ? hwCount + ' 条记录 · 最近未交 ' + hwMissingCount + ' 人' : '暂无记录') + '</small></span></button>';
+      }
+    } catch (e) {
+      console.warn('看板加载失败', e);
+    }
+  },
+
+  // =========================================================================
+  // 方案 3：量化表快捷加分 + 撤销
+  // =========================================================================
+  quickScoreDelta: 2,
+  quickScoreDay: 0,
+  _scoreUndo: null,
+
+  openQuickScore() {
+    if (this.tablesLocked && !this.creatorMode) { alert('表格已被创作者锁定，无法修改。'); return; }
+    if (!this.editingTable) { alert('请先打开一个表格'); return; }
+    if (this.editingTable.type === 'seat') { alert('座位表不支持加分'); return; }
+    if (this.quickScoreDay === undefined || this.quickScoreDay === null) this.quickScoreDay = 0;
+    var panel = document.getElementById('quick-score-panel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    this.renderQuickScore();
+    this.updateUndoButton();
+  },
+
+  closeQuickScore() {
+    var panel = document.getElementById('quick-score-panel');
+    if (panel) panel.classList.add('hidden');
+  },
+
+  renderQuickScore() {
+    var table = this.editingTable;
+    if (!table) return;
+    var presetBox = document.getElementById('qs-presets');
+    if (presetBox) {
+      var presets = [
+        { delta: 1, name: '课堂发言' },
+        { delta: 2, name: '作业完成' },
+        { delta: 3, name: '卫生值日' },
+        { delta: 5, name: '考试优秀' },
+        { delta: -1, name: '违纪' },
+        { delta: -2, name: '迟到' }
+      ];
+      var self = this;
+      presetBox.innerHTML = '';
+      presets.forEach(function (p) {
+        var b = document.createElement('button');
+        b.className = 'qs-chip' + (Number(self.quickScoreDelta) === p.delta ? ' active' : '');
+        b.textContent = (p.delta > 0 ? '+' : '') + p.delta + ' ' + p.name;
+        b.onclick = function () {
+          self.quickScoreDelta = p.delta;
+          self.renderQuickScore();
+        };
+        presetBox.appendChild(b);
+      });
+    }
+    var sel = document.getElementById('qs-day');
+    if (sel) {
+      sel.innerHTML = WEEK_LABELS.map(function (label, i) {
+        return '<option value="' + i + '"' + (i === Number(this.quickScoreDay) ? ' selected' : '') + '>' + escapeHtml(label) + '</option>';
+      }, this).join('');
+    }
+    this.renderQuickStudents();
+  },
+
+  renderQuickStudents() {
+    var box = document.getElementById('qs-students');
+    if (!box) return;
+    var table = this.editingTable;
+    if (!table) { box.innerHTML = ''; return; }
+    var rows = [];
+    (table.rows || []).forEach(function (r, i) {
+      if (r && r.name && String(r.name).trim() !== '——') rows.push({ row: r, idx: i });
+    });
+    if (!rows.length) {
+      box.innerHTML = '<span class="qs-empty">暂无学生，请先在表格中填写姓名</span>';
+      return;
+    }
+    box.innerHTML = rows.map(function (x) {
+      return '<button class="qs-stu" data-row="' + x.idx + '">' + escapeHtml(x.row.name) +
+        '<span class="qs-stu-group">' + (x.row.group || 1) + '组</span></button>';
+    }).join('');
+    var self = this;
+    box.querySelectorAll('.qs-stu').forEach(function (btn) {
+      btn.onclick = function () { self.applyQuickScore(parseInt(btn.dataset.row, 10)); };
+    });
+  },
+
+  onQuickDayChange(value) {
+    this.quickScoreDay = parseInt(value, 10) || 0;
+  },
+
+  quickScoreCustom() {
+    var inp = document.getElementById('qs-custom');
+    if (!inp) return;
+    var v = parseFloat(inp.value);
+    if (isNaN(v) || v === 0) {
+      this.showToast('请输入有效的非 0 分数', 'warn');
+      inp.focus();
+      return;
+    }
+    this.quickScoreDelta = v;
+    inp.value = '';
+    this.renderQuickScore();
+    this.showToast('已切换为 ' + (v > 0 ? '+' : '') + v + ' 分，点击学生即可加分', 'ok');
+  },
+
+  applyQuickScore(rowIdx) {
+    if (this.tablesLocked && !this.creatorMode) { alert('表格已被创作者锁定，无法修改。'); return; }
+    var table = this.editingTable;
+    if (!table) return;
+    this.collectTableData();
+    var row = table.rows[rowIdx];
+    if (!row) return;
+    var delta = parseFloat(this.quickScoreDelta);
+    if (!delta) { this.showToast('请先选择或输入有效分数', 'warn'); return; }
+    var day = parseInt(this.quickScoreDay, 10) || 0;
+    if (!Array.isArray(row.cells)) row.cells = [];
+    while (row.cells.length <= day) row.cells.push('');
+    var before = row.cells[day];
+    row.cells[day] = this.appendScoreToCell(before, delta);
+    var after = row.cells[day];
+    this.recomputeTable(table);
+    var label = (row.name || '学生') + ' ' + (delta > 0 ? '+' : '') + delta + ' 分';
+    this.pushScoreUndo(table.id, [{ row: rowIdx, day: day, before: before }], label + '（' + WEEK_LABELS[day] + '）');
+    var self = this;
+    window.electronAPI.updateTable(table).then(function () {
+      self.syncCellInputs([{ row: rowIdx, day: day, value: after }]);
+      self.refreshComputedCells();
+      self.updateUndoButton();
+      self.showToast(label + '（' + WEEK_LABELS[day] + '）', 'ok');
+      self.addLog('快捷加分', label + '，' + WEEK_LABELS[day]);
+    }).catch(function (e) {
+      self.showToast('保存失败：' + (e && e.message ? e.message : e), 'error');
+    });
+  },
+
+  syncCellInputs(changes) {
+    var body = document.getElementById('editor-body');
+    if (!body) return;
+    changes.forEach(function (c) {
+      var inp = body.querySelector('input[data-type="cell"][data-row="' + c.row + '"][data-day="' + c.day + '"]');
+      if (inp) inp.value = c.value;
+    });
+  },
+
+  pushScoreUndo(tableId, changes, label) {
+    if (!this._scoreUndo) this._scoreUndo = {};
+    var stack = this._scoreUndo[tableId] || (this._scoreUndo[tableId] = []);
+    stack.push({ changes: changes, label: label, time: Date.now() });
+    if (stack.length > 20) stack.shift();
+    this.updateUndoButton();
+  },
+
+  updateUndoButton() {
+    var btn = document.getElementById('undo-score-btn');
+    if (!btn) return;
+    var stack = (this._scoreUndo && this.editingTable) ? this._scoreUndo[this.editingTable.id] : null;
+    var count = (stack && stack.length) ? stack.length : 0;
+    btn.textContent = count ? ('撤销（' + count + '）') : '撤销';
+    btn.disabled = count === 0;
+    btn.style.opacity = count ? '' : '0.5';
+  },
+
+  async undoLastScore() {
+    if (!this.editingTable) { alert('请先打开一个表格'); return; }
+    var table = this.editingTable;
+    this.collectTableData();
+    var stack = this._scoreUndo && this._scoreUndo[table.id];
+    if (!stack || !stack.length) { this.showToast('没有可撤销的加分操作', 'warn'); return; }
+    var entry = stack.pop();
+    entry.changes.forEach(function (c) {
+      var row = table.rows[c.row];
+      if (!row) return;
+      if (!Array.isArray(row.cells)) row.cells = [];
+      while (row.cells.length <= c.day) row.cells.push('');
+      row.cells[c.day] = c.before;
+    });
+    this.recomputeTable(table);
+    var self = this;
+    try {
+      await window.electronAPI.updateTable(table);
+      this.syncCellInputs(entry.changes.map(function (c) { return { row: c.row, day: c.day, value: c.before }; }));
+      this.refreshComputedCells();
+      this.updateUndoButton();
+      this.showToast('已撤销：' + entry.label, 'ok');
+      this.addLog('撤销加分', entry.label);
+    } catch (e) {
+      self.showToast('撤销失败：' + (e && e.message ? e.message : e), 'error');
+    }
   }
 };
 
