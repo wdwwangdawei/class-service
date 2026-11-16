@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -80,10 +80,184 @@ function loadSecrets() {
   }
 }
 
+// ===== 灵动岛课程表（默认值与 Class Daily Land 保持一致） =====
+const DEFAULT_ISLAND_PERIODS = [
+  { name: '第1节', start: '08:00', end: '08:45' },
+  { name: '第2节', start: '08:55', end: '09:40' },
+  { name: '第3节', start: '10:00', end: '10:45' },
+  { name: '第4节', start: '10:55', end: '11:40' },
+  { name: '第5节', start: '14:00', end: '14:45' },
+  { name: '第6节', start: '14:55', end: '15:40' },
+  { name: '第7节', start: '16:00', end: '16:45' },
+  { name: '第8节', start: '16:55', end: '17:40' }
+];
+const DEFAULT_ISLAND_TIMETABLE = {
+  '0': ['语文', '数学', '英语', '物理', '化学', '生物', '体育', '自习'],
+  '1': ['数学', '英语', '语文', '化学', '物理', '体育', '自习', ''],
+  '2': ['英语', '语文', '数学', '生物', '化学', '物理', '自习', ''],
+  '3': ['物理', '化学', '数学', '语文', '英语', '生物', '体育', ''],
+  '4': ['化学', '物理', '英语', '数学', '语文', '自习', '', ''],
+  '5': [],
+  '6': []
+};
+
+function islandHhmmValid(value) {
+  return /^([01]?\d|2[0-3]):([0-5]\d)$/.test(String(value || '').trim());
+}
+
+function normalizeIslandPeriods(raw) {
+  if (!Array.isArray(raw) || !raw.length) return null;
+  const count = Math.min(16, raw.length);
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const source = raw[i] && typeof raw[i] === 'object' ? raw[i] : {};
+    const fallback = DEFAULT_ISLAND_PERIODS[i] || { name: '第' + (i + 1) + '节', start: '08:00', end: '08:45' };
+    const name = String(source.name || fallback.name).trim().slice(0, 20) || fallback.name;
+    const start = islandHhmmValid(source.start) ? String(source.start).trim() : fallback.start;
+    const end = islandHhmmValid(source.end) ? String(source.end).trim() : fallback.end;
+    list.push({ name: name, start: start, end: end });
+  }
+  return list;
+}
+
+function normalizeIslandTimetable(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const result = {};
+  for (let i = 0; i < 7; i++) {
+    let value = raw[String(i)];
+    if (typeof value === 'string') value = value.split(/[,，、\s]+/);
+    if (!Array.isArray(value)) value = [];
+    const courses = value.map(item => String(item == null ? '' : item).trim().slice(0, 30));
+    while (courses.length && !courses[courses.length - 1]) courses.pop();
+    result[String(i)] = courses.slice(0, 20);
+  }
+  return result;
+}
+
+function getIslandSchedule() {
+  const config = loadConfig();
+  const now = new Date();
+  const periods = normalizeIslandPeriods(config.island_periods) || DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p));
+  const odd = normalizeIslandTimetable(config.island_timetable) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE));
+  const even = normalizeIslandTimetable(config.island_timetable_even) || JSON.parse(JSON.stringify(odd));
+  const anchor = normalizeIslandWeekAnchor(config.island_week_anchor) || islandDateString(islandMonday(now));
+  const parity = islandWeekParity(anchor, now);
+  return {
+    advanceMinutes: clampInt(config.island_advance_minutes, 0, 60, 2),
+    countdownSec: clampInt(config.island_countdown_sec, 10, 600, 60),
+    periods: periods,
+    weekAnchor: anchor,
+    weekParity: parity,
+    weekLabel: parity === 'even' ? '双周' : '单周',
+    timetable: parity === 'even' ? even : odd,
+    timetableOdd: odd,
+    timetableEven: even
+  };
+}
+
+function islandMonday(date) {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const offset = (d.getDay() + 6) % 7;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset);
+}
+
+function islandDateString(date) {
+  return date.getFullYear() + '-' + islandPad(date.getMonth() + 1) + '-' + islandPad(date.getDate());
+}
+
+function normalizeIslandWeekAnchor(value) {
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(value || '').trim());
+  if (!match) return null;
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  if (isNaN(date.getTime())) return null;
+  return islandDateString(islandMonday(date));
+}
+
+// 以「单周起始周一」为基准，每 7 天翻转一次单/双周
+function islandWeekParity(anchor, now) {
+  const anchorString = normalizeIslandWeekAnchor(anchor);
+  if (!anchorString) return 'odd';
+  const parts = anchorString.split('-');
+  const anchorDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  const weeks = Math.round((islandMonday(now).getTime() - anchorDate.getTime()) / (7 * 24 * 3600 * 1000));
+  return ((weeks % 2) + 2) % 2 === 0 ? 'odd' : 'even';
+}
+
+function getIslandDayCourses(schedule, now) {
+  const weekdayKey = String((now.getDay() + 6) % 7); // 0=周一 … 6=周日，与 CDL 一致
+  const courses = (schedule.timetable && schedule.timetable[weekdayKey]) || [];
+  const list = [];
+  (schedule.periods || []).forEach((period, index) => {
+    const course = String(courses[index] || '').trim();
+    if (!course) return;
+    list.push({ index: index, period: period.name, course: course, start: period.start, end: period.end });
+  });
+  return list;
+}
+
+function islandTimeToDate(now, hhmm) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+  if (!match) return null;
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), Number(match[1]), Number(match[2]), 0, 0);
+}
+
+function computeIslandStatus(schedule, now) {
+  const courses = getIslandDayCourses(schedule, now);
+  if (!courses.length) return { status: 'none' };
+  const advanceSec = Math.max(0, Number(schedule.advanceMinutes) || 0) * 60;
+  for (const item of courses) {
+    const rawStart = islandTimeToDate(now, item.start);
+    let rawEnd = islandTimeToDate(now, item.end);
+    if (!rawStart || !rawEnd) continue;
+    if (rawEnd <= rawStart) rawEnd = new Date(rawEnd.getTime() + 24 * 3600 * 1000);
+    const start = new Date(rawStart.getTime() - advanceSec * 1000);
+    const end = rawEnd;
+    if (now >= start && now <= end) {
+      const remainSec = Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));
+      return {
+        status: 'ongoing', course: item.course, period: item.period,
+        start: item.start, end: item.end, index: item.index,
+        remainSec: remainSec,
+        remainMin: Math.max(1, Math.ceil(remainSec / 60)),
+        durationSec: Math.max(1, Math.floor((end.getTime() - start.getTime()) / 1000))
+      };
+    }
+    if (now < start) {
+      const untilSec = Math.max(0, Math.floor((start.getTime() - now.getTime()) / 1000));
+      return {
+        status: 'upcoming', course: item.course, period: item.period,
+        start: item.start, index: item.index, untilSec: untilSec,
+        untilMin: Math.max(1, Math.ceil(untilSec / 60)), advanceSec: advanceSec
+      };
+    }
+  }
+  return { status: 'done' };
+}
+
+function islandStatusText(status, schedule) {
+  if (!status) return '今日无课';
+  if (status.status === 'upcoming') {
+    const countdownSec = (schedule && schedule.countdownSec) || 60;
+    if (status.untilSec <= countdownSec) return '下节 ' + status.course + ' · ' + status.untilSec + 's';
+    return '下节 ' + status.course + ' · ' + status.untilMin + '分钟后';
+  }
+  if (status.status === 'ongoing') return '本节：' + status.course + ' 还剩 ' + status.remainMin + '分钟';
+  if (status.status === 'none') return '今日无课';
+  return '今日课程已结束';
+}
+
+function islandSubText(status) {
+  if (!status) return '';
+  if (status.status === 'upcoming') return '下节 ' + status.course + ' · ' + status.start;
+  if (status.status === 'ongoing') return '本节 ' + status.course + ' · 至 ' + status.end;
+  if (status.status === 'none') return '今日无课';
+  return '今日课程已结束';
+}
+
 function loadConfig() {
   ensureDataDir();
   if (!fs.existsSync(CONFIG_FILE)) {
-    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
+    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light', show_island: true, island_top_margin: 6, island_alert_width: 300, island_alert_hold_ms: 600, island_hide_on_fullscreen: true, island_show_wakeup_anim: true, show_sub_island: false, sub_island_collapsed: false, sub_island_auto_collapse_sec: 5, anim_fade_panel: true, anim_fade_text: true, anim_duration: 320, island_advance_minutes: 2, island_countdown_sec: 60, island_periods: DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: islandDateString(islandMonday(new Date())) };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2), 'utf-8');
     return defaultConfig;
   }
@@ -117,11 +291,35 @@ function loadConfig() {
     if (config.autoLock === undefined) config.autoLock = false;
     if (config.themeSkin === undefined) config.themeSkin = 'default';
     if (config.displayTheme === undefined) config.displayTheme = 'light';
+    if (config.show_island === undefined) config.show_island = true;
+    if (config.island_top_margin === undefined) config.island_top_margin = 6;
+    if (config.island_alert_width === undefined) config.island_alert_width = 300;
+    if (config.island_alert_hold_ms === undefined) config.island_alert_hold_ms = 600;
+    if (config.island_hide_on_fullscreen === undefined) config.island_hide_on_fullscreen = true;
+    if (config.island_show_wakeup_anim === undefined) config.island_show_wakeup_anim = true;
+    if (config.show_sub_island === undefined) config.show_sub_island = false;
+    if (config.sub_island_collapsed === undefined) config.sub_island_collapsed = false;
+    if (config.sub_island_auto_collapse_sec === undefined) config.sub_island_auto_collapse_sec = 5;
+    if (config.anim_fade_panel === undefined) config.anim_fade_panel = true;
+    if (config.anim_fade_text === undefined) config.anim_fade_text = true;
+    if (config.anim_duration === undefined) config.anim_duration = 320;
+    if (config.island_advance_minutes === undefined) config.island_advance_minutes = 2;
+    if (config.island_countdown_sec === undefined) config.island_countdown_sec = 60;
+    if (config.island_periods === undefined) config.island_periods = DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p));
+    if (config.island_timetable === undefined) config.island_timetable = JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE));
+    if (config.island_timetable_even === undefined) {
+      config.island_timetable_even = JSON.parse(JSON.stringify(config.island_timetable || DEFAULT_ISLAND_TIMETABLE));
+      configChanged = true;
+    }
+    if (config.island_week_anchor === undefined) {
+      config.island_week_anchor = islandDateString(islandMonday(new Date()));
+      configChanged = true;
+    }
     if (config.syncPassword === undefined) config.syncPassword = '';
     if (configChanged) saveConfig(config);
     return config;
   } catch (e) {
-    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light' };
+    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light', show_island: true, island_top_margin: 6, island_alert_width: 300, island_alert_hold_ms: 600, island_hide_on_fullscreen: true, island_show_wakeup_anim: true, show_sub_island: false, sub_island_collapsed: false, sub_island_auto_collapse_sec: 5, anim_fade_panel: true, anim_fade_text: true, anim_duration: 320, island_advance_minutes: 2, island_countdown_sec: 60, island_periods: DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: islandDateString(islandMonday(new Date())) };
   }
 }
 
@@ -840,7 +1038,7 @@ ipcMain.handle('get-week-labels', () => WEEK_LABELS);
 // 密码相关 IPC
 ipcMain.handle('get-config', () => {
   const config = loadConfig();
-  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'default', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true };
+  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'default', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true, show_island: config.show_island !== false, island_top_margin: clampInt(config.island_top_margin, 0, 100, 6), island_alert_width: clampInt(config.island_alert_width, 200, 800, 300), island_alert_hold_ms: clampInt(config.island_alert_hold_ms, 100, 5000, 600), island_hide_on_fullscreen: config.island_hide_on_fullscreen !== false, island_show_wakeup_anim: config.island_show_wakeup_anim !== false, show_sub_island: config.show_sub_island === true, sub_island_collapsed: config.sub_island_collapsed === true, sub_island_auto_collapse_sec: clampInt(config.sub_island_auto_collapse_sec, 0, 120, 5), anim_fade_panel: config.anim_fade_panel !== false, anim_fade_text: config.anim_fade_text !== false, anim_duration: clampInt(config.anim_duration, 100, 2000, 320), island_advance_minutes: clampInt(config.island_advance_minutes, 0, 60, 2), island_countdown_sec: clampInt(config.island_countdown_sec, 10, 600, 60), island_periods: normalizeIslandPeriods(config.island_periods) || DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: normalizeIslandTimetable(config.island_timetable) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: normalizeIslandTimetable(config.island_timetable_even) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: normalizeIslandWeekAnchor(config.island_week_anchor) || islandDateString(islandMonday(new Date())) };
 });
 
 ipcMain.handle('verify-password', (event, input) => {
@@ -919,6 +1117,17 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.8.0': { date: '2026-11-16', items: [
+        '灵动岛升级为独立桌面窗口，始终置顶显示，与 Class Daily Land 的收起/展开、唤醒动画和提醒条一致',
+        '灵动岛改为显示课表：下节课、本节剩余时间、今日无课/课程已结束，圆环随上课进度变化',
+        '灵动岛展开面板显示今日课程，副岛显示下节/本节课程提醒，不再显示作业与值日统计',
+        '新增课程表设置：提前提醒分钟数、上课倒计时时长、8 节课时间与周一至周日课程',
+        '课程表支持单双周轮换：分别设置单周与双周课程，按周自动交替，灵动岛自动显示当周课程',
+        '关闭主界面后灵动岛继续停留桌面，打开课件等全屏应用时自动隐藏，退出全屏后自动恢复',
+        '新增系统托盘：可恢复主界面、显示/隐藏灵动岛、打开灵动岛设置或退出程序',
+        '侧边栏「扩展」新增「灵动岛」页面，支持顶部距离、提醒条、全屏隐藏、唤醒动画、副岛与动效设置',
+        '修复灵动岛设置页开关与数值修改后回读失败、看起来不生效的问题'
+      ] },
       '3.7.0': { date: '2026-11-15', items: [
         '新增顶部灵动岛：显示时间与今日作业、值日、积分榜首概览',
         '点击灵动岛展开详情面板，可快速进入作业登记、值日表与首页',
@@ -1375,6 +1584,12 @@ ipcMain.handle('get-changelog', () => {
   return CHANGELOG;
 });
 
+function clampInt(value, min, max, fallback) {
+  const n = parseInt(value, 10);
+  if (isNaN(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
 // 更新通用设置（音效/语言/字体/背景音乐）
 ipcMain.handle('update-settings-config', (event, params) => {
   const config = loadConfig();
@@ -1391,7 +1606,38 @@ ipcMain.handle('update-settings-config', (event, params) => {
   if (params.autoLock !== undefined) config.autoLock = params.autoLock === true;
   if (params.themeSkin !== undefined) config.themeSkin = String(params.themeSkin);
   if (params.displayTheme !== undefined) config.displayTheme = String(params.displayTheme);
+  if (params.show_island !== undefined) config.show_island = params.show_island === true;
+  if (params.island_top_margin !== undefined) config.island_top_margin = clampInt(params.island_top_margin, 0, 100, 6);
+  if (params.island_alert_width !== undefined) config.island_alert_width = clampInt(params.island_alert_width, 200, 800, 300);
+  if (params.island_alert_hold_ms !== undefined) config.island_alert_hold_ms = clampInt(params.island_alert_hold_ms, 100, 5000, 600);
+  if (params.island_hide_on_fullscreen !== undefined) config.island_hide_on_fullscreen = params.island_hide_on_fullscreen === true;
+  if (params.island_show_wakeup_anim !== undefined) config.island_show_wakeup_anim = params.island_show_wakeup_anim === true;
+  if (params.show_sub_island !== undefined) config.show_sub_island = params.show_sub_island === true;
+  if (params.sub_island_collapsed !== undefined) config.sub_island_collapsed = params.sub_island_collapsed === true;
+  if (params.sub_island_auto_collapse_sec !== undefined) config.sub_island_auto_collapse_sec = clampInt(params.sub_island_auto_collapse_sec, 0, 120, 5);
+  if (params.anim_fade_panel !== undefined) config.anim_fade_panel = params.anim_fade_panel === true;
+  if (params.anim_fade_text !== undefined) config.anim_fade_text = params.anim_fade_text === true;
+  if (params.anim_duration !== undefined) config.anim_duration = clampInt(params.anim_duration, 100, 2000, 320);
+  if (params.island_advance_minutes !== undefined) config.island_advance_minutes = clampInt(params.island_advance_minutes, 0, 60, 2);
+  if (params.island_countdown_sec !== undefined) config.island_countdown_sec = clampInt(params.island_countdown_sec, 10, 600, 60);
+  if (params.island_periods !== undefined) {
+    const periods = normalizeIslandPeriods(params.island_periods);
+    if (periods) config.island_periods = periods;
+  }
+  if (params.island_timetable !== undefined) {
+    const timetable = normalizeIslandTimetable(params.island_timetable);
+    if (timetable) config.island_timetable = timetable;
+  }
+  if (params.island_timetable_even !== undefined) {
+    const timetableEven = normalizeIslandTimetable(params.island_timetable_even);
+    if (timetableEven) config.island_timetable_even = timetableEven;
+  }
+  if (params.island_week_anchor !== undefined) {
+    const weekAnchor = normalizeIslandWeekAnchor(params.island_week_anchor);
+    if (weekAnchor) config.island_week_anchor = weekAnchor;
+  }
   saveConfig(config);
+  notifyIslandConfigChanged();
   return { success: true };
 });
 
@@ -2985,6 +3231,7 @@ ipcMain.handle('homework-delete', (event, id) => {
 
 
 let mainWindow;
+app.isQuitting = false;
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -3013,16 +3260,462 @@ function createWindow() {
     mainWindow = null;
   });
 
-  // Windows 上关闭主窗口时强制退出应用，避免后台进程残留
-  mainWindow.on('close', () => {
-    if (process.platform !== 'darwin') {
-      BrowserWindow.getAllWindows().forEach(win => {
-        if (!win.isDestroyed()) win.destroy();
-      });
-      app.quit();
+  // 关闭主窗口时隐藏到托盘，灵动岛继续在桌面置顶显示
+  mainWindow.on('close', (event) => {
+    if (!app.isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+      refreshIslandVisibility(true);
     }
   });
 }
+
+// ===================== 桌面灵动岛 =====================
+let islandWindow = null;
+let islandTray = null;
+let islandTopTimer = null;
+let islandHideTimer = null;
+let islandLocked = false;
+let islandLastFullscreen = false;
+let islandLastVisible = null;
+let fullscreenWatcher = null;
+let fullscreenWatcherStopped = false;
+let fullscreenWatcherFailures = 0;
+
+const ISLAND_WIN_WIDTH = 900;
+const ISLAND_WIN_HEIGHT = 560;
+
+function getIslandConfig() {
+  const c = loadConfig();
+  return {
+    show_island: c.show_island !== false,
+    island_top_margin: clampInt(c.island_top_margin, 0, 100, 6),
+    island_alert_width: clampInt(c.island_alert_width, 200, 800, 300),
+    island_alert_hold_ms: clampInt(c.island_alert_hold_ms, 100, 5000, 600),
+    island_hide_on_fullscreen: c.island_hide_on_fullscreen !== false,
+    island_show_wakeup_anim: c.island_show_wakeup_anim !== false,
+    show_sub_island: c.show_sub_island === true,
+    sub_island_collapsed: c.sub_island_collapsed === true,
+    sub_island_auto_collapse_sec: clampInt(c.sub_island_auto_collapse_sec, 0, 120, 5),
+    anim_fade_panel: c.anim_fade_panel !== false,
+    anim_fade_text: c.anim_fade_text !== false,
+    anim_duration: clampInt(c.anim_duration, 100, 2000, 320),
+    schedule: getIslandSchedule()
+  };
+}
+
+function createIslandWindow() {
+  if (islandWindow && !islandWindow.isDestroyed()) return;
+  const display = screen.getPrimaryDisplay();
+  const x = Math.round(display.bounds.x + (display.bounds.width - ISLAND_WIN_WIDTH) / 2);
+  const y = display.bounds.y;
+  islandWindow = new BrowserWindow({
+    x,
+    y,
+    width: ISLAND_WIN_WIDTH,
+    height: ISLAND_WIN_HEIGHT,
+    frame: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    skipTaskbar: true,
+    focusable: false,
+    hasShadow: false,
+    alwaysOnTop: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'island-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      backgroundThrottling: false
+    }
+  });
+  islandWindow.setAlwaysOnTop(true, 'screen-saver');
+  islandWindow.setMenuBarVisibility(false);
+  islandWindow.loadFile(path.join(__dirname, 'src', 'island.html'));
+  islandWindow.webContents.on('did-finish-load', () => {
+    if (!islandWindow || islandWindow.isDestroyed()) return;
+    islandWindow.webContents.send('island-config-updated', getIslandConfig());
+    islandWindow.webContents.send('island-locked-state', islandLocked);
+  });
+  islandWindow.once('ready-to-show', () => {
+    if (!islandWindow || islandWindow.isDestroyed()) return;
+    islandWindow.setIgnoreMouseEvents(true, { forward: true });
+    islandLastVisible = null;
+    refreshIslandVisibility(true);
+  });
+  islandWindow.on('closed', () => {
+    islandWindow = null;
+  });
+  if (!islandTopTimer) {
+    islandTopTimer = setInterval(() => {
+      if (islandWindow && !islandWindow.isDestroyed() && islandWindow.isVisible()) {
+        islandWindow.setAlwaysOnTop(true, 'screen-saver');
+      }
+    }, 1500);
+  }
+}
+
+function notifyIslandConfigChanged() {
+  if (islandWindow && !islandWindow.isDestroyed()) {
+    islandWindow.webContents.send('island-config-updated', getIslandConfig());
+    islandWindow.webContents.send('island-data-updated', buildIslandData());
+  }
+  islandLastVisible = null;
+  refreshIslandVisibility(true);
+  rebuildTrayMenu();
+}
+
+function bringIslandUp() {
+  if (!islandWindow || islandWindow.isDestroyed()) return;
+  // Windows 下 showInactive() 在 hide() 之后可能无法真正显示窗口，改用 show() 并保持不抢焦点
+  if (!islandWindow.isVisible()) islandWindow.show();
+  islandWindow.setAlwaysOnTop(true, 'screen-saver');
+}
+
+function refreshIslandVisibility(force) {
+  if (!islandWindow || islandWindow.isDestroyed()) return;
+  const cfg = getIslandConfig();
+  const shouldShow = cfg.show_island && !islandLocked && !(cfg.island_hide_on_fullscreen && islandLastFullscreen);
+  if (!force && shouldShow === islandLastVisible) return;
+  islandLastVisible = shouldShow;
+  if (islandHideTimer) {
+    clearTimeout(islandHideTimer);
+    islandHideTimer = null;
+  }
+  if (shouldShow) {
+    bringIslandUp();
+    islandWindow.webContents.send('island-visibility', true);
+  } else {
+    islandWindow.webContents.send('island-visibility', false);
+    islandHideTimer = setTimeout(() => {
+      islandHideTimer = null;
+      if (!islandWindow || islandWindow.isDestroyed()) return;
+      const cur = getIslandConfig();
+      if (cur.show_island && !islandLocked && !(cur.island_hide_on_fullscreen && islandLastFullscreen)) return;
+      islandWindow.hide();
+    }, 700);
+  }
+}
+
+function setIslandSetting(key, value) {
+  const config = loadConfig();
+  switch (key) {
+    case 'show_island': config.show_island = value === true; break;
+    case 'island_top_margin': config.island_top_margin = clampInt(value, 0, 100, 6); break;
+    case 'island_alert_width': config.island_alert_width = clampInt(value, 200, 800, 300); break;
+    case 'island_alert_hold_ms': config.island_alert_hold_ms = clampInt(value, 100, 5000, 600); break;
+    case 'island_hide_on_fullscreen': config.island_hide_on_fullscreen = value === true; break;
+    case 'island_show_wakeup_anim': config.island_show_wakeup_anim = value === true; break;
+    case 'show_sub_island': config.show_sub_island = value === true; break;
+    case 'sub_island_collapsed': config.sub_island_collapsed = value === true; break;
+    case 'sub_island_auto_collapse_sec': config.sub_island_auto_collapse_sec = clampInt(value, 0, 120, 5); break;
+    case 'anim_fade_panel': config.anim_fade_panel = value === true; break;
+    case 'anim_fade_text': config.anim_fade_text = value === true; break;
+    case 'anim_duration': config.anim_duration = clampInt(value, 100, 2000, 320); break;
+    default: return { success: false, error: 'unknown key' };
+  }
+  saveConfig(config);
+  notifyIslandConfigChanged();
+  return { success: true, config: getIslandConfig() };
+}
+
+function islandPad(n) {
+  return String(n).padStart(2, '0');
+}
+
+function buildIslandData() {
+  const now = new Date();
+  const today = now.getFullYear() + '-' + islandPad(now.getMonth() + 1) + '-' + islandPad(now.getDate());
+  const dayNames = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const dayName = dayNames[now.getDay()];
+  const schedule = getIslandSchedule();
+  const status = computeIslandStatus(schedule, now);
+
+  return {
+    date: today,
+    dayName,
+    dateText: (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日 ' + dayName,
+    schedule,
+    status,
+    courses: getIslandDayCourses(schedule, now),
+    compactText: islandStatusText(status, schedule),
+    subText: islandSubText(status),
+    updatedAt: Date.now()
+  };
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  // 隐藏期间被系统最小化时，show() 可能停留在屏幕外的图标状态，强制还原为主界面最大化显示
+  const bounds = mainWindow.getBounds();
+  if (bounds.width < 200 || bounds.height < 100) mainWindow.maximize();
+  mainWindow.focus();
+}
+
+function openIslandSettingsPage() {
+  showMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('open-island-settings');
+  }
+}
+
+function rebuildTrayMenu() {
+  if (!islandTray) return;
+  const cfg = getIslandConfig();
+  const menu = Menu.buildFromTemplate([
+    { label: '显示主界面', click: () => showMainWindow() },
+    { type: 'separator' },
+    {
+      label: '显示灵动岛',
+      type: 'checkbox',
+      checked: cfg.show_island,
+      click: (item) => setIslandSetting('show_island', item.checked)
+    },
+    { label: '灵动岛设置', click: () => openIslandSettingsPage() },
+    { type: 'separator' },
+    { label: '退出程序', click: () => { app.isQuitting = true; app.quit(); } }
+  ]);
+  islandTray.setContextMenu(menu);
+}
+
+function createIslandTray() {
+  if (islandTray) return;
+  try {
+    let icon = nativeImage.createFromPath(path.join(__dirname, 'app_icon.ico'));
+    if (icon.isEmpty()) icon = nativeImage.createEmpty();
+    islandTray = new Tray(icon);
+    islandTray.setToolTip('班级服务管理系统');
+    rebuildTrayMenu();
+    islandTray.on('double-click', () => showMainWindow());
+  } catch (e) {
+    islandTray = null;
+  }
+}
+
+const FULLSCREEN_WATCH_PS = [
+  "$ErrorActionPreference = 'SilentlyContinue'",
+  "$src = @\"",
+  'using System;',
+  'using System.Runtime.InteropServices;',
+  'using System.Text;',
+  'public class CSIslandWin {',
+  '  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }',
+  '  [StructLayout(LayoutKind.Sequential)] public struct MONITORINFO { public int cbSize; public RECT rcMonitor; public RECT rcWork; public int dwFlags; }',
+  '  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();',
+  '  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);',
+  '  [DllImport("user32.dll")] public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);',
+  '  [DllImport("user32.dll")] public static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);',
+  '  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);',
+  '  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassNameW(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);',
+  '  [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hWnd, int nIndex);',
+  '}',
+  '"@',
+  'Add-Type -TypeDefinition $src | Out-Null',
+  "$appProc = '__APP_PROC__'",
+  'while ($true) {',
+  '  $full = 0',
+  '  $procName = ""',
+  '  $clsName = ""',
+  '  $h = [CSIslandWin]::GetForegroundWindow()',
+  '  if ($h -ne [IntPtr]::Zero) {',
+  '    try {',
+  '      $r = New-Object CSIslandWin+RECT',
+  '      if ([CSIslandWin]::GetWindowRect($h, [ref]$r)) {',
+  '        $mon = [CSIslandWin]::MonitorFromWindow($h, 2)',
+  '        $mi = New-Object CSIslandWin+MONITORINFO',
+  '        $mi.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($mi)',
+  '        if ([CSIslandWin]::GetMonitorInfo($mon, [ref]$mi)) {',
+  '          $mw = $mi.rcMonitor.Right - $mi.rcMonitor.Left',
+  '          $mh = $mi.rcMonitor.Bottom - $mi.rcMonitor.Top',
+  '          $ww = $r.Right - $r.Left',
+  '          $wh = $r.Bottom - $r.Top',
+  '          $style = [CSIslandWin]::GetWindowLong($h, -16)',
+  '          $maximized = (($style -band 0x01000000) -ne 0)',
+  '          if (-not $maximized -and $mw -gt 0 -and $mh -gt 0 -and $r.Left -le ($mi.rcMonitor.Left + 4) -and $r.Top -le ($mi.rcMonitor.Top + 4) -and $ww -ge ($mw - 8) -and $wh -ge ($mh - 8)) { $full = 1 }',
+  '        }',
+  '      }',
+  '      $procId = 0',
+  '      [void][CSIslandWin]::GetWindowThreadProcessId($h, [ref]$procId)',
+  '      if ($procId -gt 0) { $procName = (Get-Process -Id $procId -ErrorAction SilentlyContinue).ProcessName }',
+  '      if ($procName -eq $appProc) { $full = 0 }',
+  '      $sb = New-Object System.Text.StringBuilder 256',
+  '      [void][CSIslandWin]::GetClassNameW($h, $sb, 256)',
+  '      $clsName = $sb.ToString()',
+  '    } catch {}',
+  '  }',
+  '  Write-Output ($full.ToString() + "|" + $procName + "|" + $clsName)',
+  '  Start-Sleep -Milliseconds 400',
+  '}'
+].join('\r\n');
+
+const FULLSCREEN_SHELL_PROCESSES = ['explorer', 'searchhost', 'startmenuexperiencehost', 'shellexperiencehost', 'lockapp', 'textinputhost'];
+const FULLSCREEN_SHELL_CLASSES = ['progman', 'workerw', 'shell_traywnd', 'shell_secondarytraywnd', 'windows.ui.core.corewindow'];
+
+function handleForegroundInfo(line) {
+  const parts = String(line).trim().split('|');
+  if (parts.length < 2) return;
+  const isFull = parts[0] === '1';
+  const procName = (parts[1] || '').toLowerCase();
+  const clsName = (parts[2] || '').toLowerCase();
+  if (FULLSCREEN_SHELL_PROCESSES.indexOf(procName) >= 0) return;
+  if (FULLSCREEN_SHELL_CLASSES.indexOf(clsName) >= 0) return;
+  if (isFull === islandLastFullscreen) return;
+  islandLastFullscreen = isFull;
+  refreshIslandVisibility(true);
+}
+
+function startFullscreenWatcher() {
+  if (process.platform !== 'win32' || fullscreenWatcher || isUninstallMode) return;
+  const { spawn } = require('child_process');
+  const psPath = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  const appProcName = path.basename(process.execPath, path.extname(process.execPath));
+  const watchScript = FULLSCREEN_WATCH_PS.replace('__APP_PROC__', appProcName.replace(/'/g, "''"));
+  let child;
+  try {
+    child = spawn(psPath, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-Command', watchScript], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore']
+    });
+  } catch (e) {
+    return;
+  }
+  fullscreenWatcher = child;
+  fullscreenWatcherStopped = false;
+  let buffer = '';
+  child.stdout.on('data', (chunk) => {
+    buffer += chunk.toString('utf8');
+    let idx;
+    while ((idx = buffer.indexOf('\n')) >= 0) {
+      const line = buffer.slice(0, idx).trim();
+      buffer = buffer.slice(idx + 1);
+      if (line) handleForegroundInfo(line);
+    }
+  });
+  child.on('error', () => {
+    fullscreenWatcher = null;
+  });
+  child.on('exit', () => {
+    fullscreenWatcher = null;
+    if (fullscreenWatcherStopped) return;
+    fullscreenWatcherFailures += 1;
+    if (fullscreenWatcherFailures >= 3) return;
+    setTimeout(() => startFullscreenWatcher(), 3000);
+  });
+}
+
+function stopFullscreenWatcher() {
+  fullscreenWatcherStopped = true;
+  if (fullscreenWatcher) {
+    try { fullscreenWatcher.kill(); } catch (e) {}
+    fullscreenWatcher = null;
+  }
+}
+
+ipcMain.handle('island-get-state', () => {
+  return { config: getIslandConfig(), locked: islandLocked, fullscreen: islandLastFullscreen };
+});
+
+ipcMain.handle('island-get-data', () => {
+  try {
+    return { success: true, data: buildIslandData() };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('island-set-interactive', (event, interactive) => {
+  if (!islandWindow || islandWindow.isDestroyed()) return { success: true };
+  islandWindow.setIgnoreMouseEvents(interactive !== true, { forward: true });
+  return { success: true };
+});
+
+ipcMain.handle('island-set-setting', (event, params) => {
+  if (!params || !params.key) return { success: false, error: 'invalid params' };
+  return setIslandSetting(params.key, params.value);
+});
+
+ipcMain.handle('island-save-settings', (event, params) => {
+  if (!params || typeof params !== 'object') return { success: false, error: 'invalid params' };
+  let result = { success: true };
+  Object.keys(params).forEach(key => {
+    const r = setIslandSetting(key, params[key]);
+    if (!r.success) result = r;
+  });
+  return result;
+});
+
+ipcMain.handle('island-open-main', () => {
+  showMainWindow();
+  return { success: true };
+});
+
+ipcMain.handle('island-open-page', (event, page) => {
+  showMainWindow();
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('island-navigate', String(page || ''));
+  }
+  return { success: true };
+});
+
+ipcMain.handle('island-open-settings', () => {
+  openIslandSettingsPage();
+  return { success: true };
+});
+
+ipcMain.handle('island-context-menu', () => {
+  if (!islandWindow || islandWindow.isDestroyed()) return { success: true };
+  const cfg = getIslandConfig();
+  const menu = Menu.buildFromTemplate([
+    { label: '隐藏灵动岛', click: () => setIslandSetting('show_island', false) },
+    { label: cfg.show_sub_island ? '隐藏副岛' : '显示副岛', click: () => setIslandSetting('show_sub_island', !cfg.show_sub_island) },
+    { type: 'separator' },
+    { label: '打开主界面', click: () => showMainWindow() },
+    { label: '灵动岛设置', click: () => openIslandSettingsPage() },
+    { type: 'separator' },
+    { label: '退出程序', click: () => { app.isQuitting = true; app.quit(); } }
+  ]);
+  menu.popup();
+  return { success: true };
+});
+
+ipcMain.handle('island-alert', (event, params) => {
+  if (islandWindow && !islandWindow.isDestroyed()) {
+    islandWindow.webContents.send('island-alert', params || {});
+  }
+  return { success: true };
+});
+
+ipcMain.handle('island-refresh', () => {
+  if (islandWindow && !islandWindow.isDestroyed()) {
+    islandWindow.webContents.send('island-data-updated', buildIslandData());
+  }
+  return { success: true };
+});
+
+ipcMain.handle('island-preview', () => {
+  if (islandWindow && !islandWindow.isDestroyed()) {
+    bringIslandUp();
+    islandWindow.webContents.send('island-preview');
+  }
+  return { success: true };
+});
+
+ipcMain.handle('island-set-locked', (event, locked) => {
+  islandLocked = locked === true;
+  islandLastVisible = null;
+  refreshIslandVisibility(true);
+  return { success: true };
+});
 
 
 // ===== 卸载模式：需输入管理员密码 =====
@@ -3104,6 +3797,9 @@ if (isUninstallMode) {
   app.whenReady().then(() => {
     migrateOldData();
     createWindow();
+    createIslandWindow();
+    createIslandTray();
+    startFullscreenWatcher();
     // 启动3秒后自动检查更新
     setTimeout(async () => {
       try {
@@ -3119,17 +3815,28 @@ if (isUninstallMode) {
 }
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  // 关闭主界面后灵动岛与托盘继续运行，只有明确退出时才结束进程
+  if (app.isQuitting && process.platform !== 'darwin') {
     app.quit();
-    // 强制退出，确保进程不残留
     setTimeout(() => app.exit(0), 500);
   }
 });
 
-app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
-    createWindow();
+app.on('before-quit', () => {
+  app.isQuitting = true;
+  stopFullscreenWatcher();
+  if (islandTopTimer) {
+    clearInterval(islandTopTimer);
+    islandTopTimer = null;
   }
+  if (islandHideTimer) {
+    clearTimeout(islandHideTimer);
+    islandHideTimer = null;
+  }
+});
+
+app.on('activate', () => {
+  showMainWindow();
 });
 
 

@@ -45,6 +45,7 @@ window.app = {
     this.bindClickSounds();
     this.bindInputGuard();
     this.initRemoteUpdateListener();
+    this.initIslandListeners();
     this.checkLicenseAndStart();
   },
 
@@ -508,6 +509,19 @@ window.app = {
     }
   },
 
+  initIslandListeners() {
+    if (window.electronAPI.onOpenIslandSettings) {
+      window.electronAPI.onOpenIslandSettings(() => this.showIslandPage());
+    }
+    if (window.electronAPI.onIslandNavigate) {
+      window.electronAPI.onIslandNavigate((page) => {
+        if (page === 'homework') this.showHomeworkPage();
+        else if (page === 'duty') this.showDutyPage();
+        else if (page === 'island') this.showIslandPage();
+      });
+    }
+  },
+
   showRemoteUpdateDialog(info) {
     const modal = document.getElementById('remote-update-modal');
     if (!modal) return;
@@ -609,7 +623,7 @@ window.app = {
 
   lockApp() {
     this.isLocked = true;
-    this.toggleIsland(false);
+    try { window.electronAPI.islandSetLocked(true); } catch (e) {}
     document.body.classList.add('app-locked');
     this.showSection('password-lock');
     const input = document.getElementById('lock-password-input');
@@ -1144,6 +1158,7 @@ window.app = {
       if (id === 'roster-page') title.textContent = '学生名单';
       if (id === 'duty-page') title.textContent = '值日表';
       if (id === 'homework-page') title.textContent = '作业登记';
+      if (id === 'island-page') title.textContent = '灵动岛';
     }
     this.updateNav(id);
     this.applyLanguage();
@@ -1166,6 +1181,7 @@ window.app = {
       'roster-page': 'roster',
       'duty-page': 'duty',
       'homework-page': 'homework',
+      'island-page': 'island',
       'password-lock': ''
     };
     var page = pageMap[sectionId] || '';
@@ -5323,164 +5339,166 @@ window.app = {
   // =========================================================================
   // 灵动岛
   // =========================================================================
-  islandOpen: false,
-  _islandTimer: null,
-  _islandAlertTimer: null,
-  _islandData: null,
-
   initIsland() {
-    var el = document.getElementById('island');
-    if (!el) return;
-    var self = this;
-    this.updateIslandClock();
-    if (!this._islandClockTimer) {
-      this._islandClockTimer = setInterval(function () { self.updateIslandClock(); }, 1000);
-    }
-    if (!this._islandDataTimer) {
-      this._islandDataTimer = setInterval(function () { self.refreshIsland(); }, 30000);
-    }
-    if (!this._islandBound) {
-      this._islandBound = true;
-      document.addEventListener('pointerdown', function (e) {
-        if (!self.islandOpen) return;
-        var box = document.getElementById('island');
-        if (box && !box.contains(e.target)) self.toggleIsland(false);
-      });
-      document.addEventListener('keydown', function (e) {
-        if (e.key === 'Escape' && self.islandOpen) self.toggleIsland(false);
-      });
-    }
-    el.classList.add('show');
-    this.refreshIsland();
+    try { window.electronAPI.islandSetLocked(false); } catch (e) {}
+    try { window.electronAPI.islandRefresh(); } catch (e) {}
   },
 
-  updateIslandClock() {
-    var el = document.getElementById('island-clock');
-    if (!el) return;
-    var d = new Date();
-    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
-    el.textContent = p(d.getHours()) + ':' + p(d.getMinutes());
-  },
-
-  islandWeekName(d) {
-    return ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()];
-  },
-
-  islandToday() {
-    var d = new Date();
-    var p = function (n) { return n < 10 ? '0' + n : '' + n; };
-    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
-  },
-
-  async refreshIsland(manual) {
-    var now = new Date();
-    var day = this.islandWeekName(now);
-    var data = { hw: '今日暂无作业登记', duty: day + '暂无值日安排', score: '暂无量化积分' };
-    var short = [];
-    try {
-      var hw = await window.electronAPI.homeworkGet();
-      var recs = (hw && hw.records) || [];
-      var today = this.islandToday();
-      var todays = recs.filter(function (r) { return String(r.date || '').slice(0, 10) === today; });
-      if (todays.length) {
-        var total = 0;
-        var parts = todays.map(function (r) {
-          var n = (r.missing || []).length;
-          total += n;
-          return (r.subject || '未命名') + (n ? ' ' + n + ' 人未交' : ' 已交齐');
-        });
-        data.hw = parts.join(' · ');
-        short.push(total ? '作业 ' + total + ' 人未交' : '作业已交齐');
-      } else {
-        short.push('今日无作业');
-      }
-    } catch (e) { short.push('作业读取失败'); }
-    try {
-      var duty = await window.electronAPI.dutyGet();
-      var map = (duty && duty.days && duty.days[day]) || null;
-      var names = [];
-      if (map) {
-        Object.keys(map).forEach(function (t) {
-          (map[t] || []).forEach(function (n) { if (n && names.indexOf(n) < 0) names.push(n); });
-        });
-      }
-      if (!map && (day === '周六' || day === '周日')) {
-        data.duty = '周末休息，无需值日';
-        short.push('周末休息');
-      } else if (names.length) {
-        data.duty = day + '：' + names.slice(0, 8).join('、') + (names.length > 8 ? ' 等 ' + names.length + ' 人' : '');
-        short.push('值日 ' + names.length + ' 人');
-      } else {
-        short.push('值日未排班');
-      }
-    } catch (e) { short.push('值日读取失败'); }
-    try {
-      var tables = await window.electronAPI.loadTables();
-      var rankings = (tables || []).filter(function (t) { return (t.type || 'ranking') === 'ranking'; });
-      var latest = null;
-      for (var i = rankings.length - 1; i >= 0; i--) {
-        if (Object.keys(rankings[i].group_scores || {}).length) { latest = rankings[i]; break; }
-      }
-      if (latest) {
-        var gs = Object.keys(latest.group_scores || {}).map(function (g) {
-          return { group: Number(g), score: Number(latest.group_scores[g]) || 0 };
-        });
-        gs.sort(function (a, b) { return b.score - a.score; });
-        if (gs.length) {
-          data.score = '第 ' + gs[0].group + ' 组领先 · ' + (Math.round(gs[0].score * 100) / 100) + ' 分';
-          short.push('第' + gs[0].group + '组第一');
-        }
-      }
-    } catch (e) { short.push('积分读取失败'); }
-    this._islandData = data;
-    var sub = document.getElementById('island-sub');
-    if (sub && !document.getElementById('island').classList.contains('alert')) {
-      sub.textContent = short.join(' · ');
-    }
-    this.renderIslandPanel();
-    if (manual) this.islandAlert('已刷新 · ' + short.join(' · '), 'info', 2000);
-  },
-
-  renderIslandPanel() {
-    var d = this._islandData || {};
-    var now = new Date();
-    var dateEl = document.getElementById('island-date');
-    if (dateEl) dateEl.textContent = (now.getMonth() + 1) + '月' + now.getDate() + '日 ' + this.islandWeekName(now);
-    var box = document.getElementById('island-rows');
-    if (!box) return;
-    box.innerHTML =
-      '<div class="island-row"><span class="island-row-ico ico-amber">作</span><div class="island-row-text"><b>今日作业</b><span>' + escapeHtml(d.hw || '') + '</span></div></div>' +
-      '<div class="island-row"><span class="island-row-ico ico-green">值</span><div class="island-row-text"><b>值日安排</b><span>' + escapeHtml(d.duty || '') + '</span></div></div>' +
-      '<div class="island-row"><span class="island-row-ico ico-blue">分</span><div class="island-row-text"><b>积分榜首</b><span>' + escapeHtml(d.score || '') + '</span></div></div>';
-  },
-
-  toggleIsland(force) {
-    var box = document.getElementById('island');
-    if (!box) return;
-    var next = typeof force === 'boolean' ? force : !this.islandOpen;
-    this.islandOpen = next;
-    box.classList.toggle('open', next);
-    clearTimeout(this._islandTimer);
-    if (next) {
-      this.renderIslandPanel();
-      this.refreshIsland();
-      var self = this;
-      this._islandTimer = setTimeout(function () { self.toggleIsland(false); }, 8000);
-    }
+  refreshIsland(manual) {
+    try { window.electronAPI.islandRefresh(); } catch (e) {}
+    if (manual) this.showToast('灵动岛已刷新');
   },
 
   islandAlert(text, type, ms) {
-    var box = document.getElementById('island');
-    var sub = document.getElementById('island-sub');
-    if (!box || !sub) return;
-    var self = this;
-    box.classList.add('show', 'alert');
-    sub.textContent = text;
-    clearTimeout(this._islandAlertTimer);
-    this._islandAlertTimer = setTimeout(function () {
-      box.classList.remove('alert');
-      self.refreshIsland();
-    }, ms || 2600);
+    try { window.electronAPI.islandAlert(text, type || 'info', ms || 0); } catch (e) {}
+  },
+
+  toggleIsland() {},
+
+  showIslandPage() {
+    this.showSection('island-page');
+    this.loadIslandSettings();
+  },
+
+  async loadIslandSettings() {
+    try {
+      var cfg = await window.electronAPI.getConfig();
+      cfg = cfg || {};
+      var setVal = function (id, value) {
+        var el = document.getElementById(id);
+        if (el) el.value = value;
+      };
+      var setChk = function (id, value) {
+        var el = document.getElementById(id);
+        if (el) el.checked = value === true;
+      };
+      setChk('island-set-show', cfg.show_island !== false);
+      setVal('island-set-top', cfg.island_top_margin != null ? cfg.island_top_margin : 6);
+      setVal('island-set-alert-width', cfg.island_alert_width != null ? cfg.island_alert_width : 300);
+      setVal('island-set-alert-hold', cfg.island_alert_hold_ms != null ? cfg.island_alert_hold_ms : 600);
+      setChk('island-set-fullscreen', cfg.island_hide_on_fullscreen !== false);
+      setChk('island-set-wake', cfg.island_show_wakeup_anim !== false);
+      setChk('island-set-sub', cfg.show_sub_island === true);
+      setChk('island-set-sub-collapsed', cfg.sub_island_collapsed === true);
+      setVal('island-set-sub-auto', cfg.sub_island_auto_collapse_sec != null ? cfg.sub_island_auto_collapse_sec : 5);
+      setChk('island-set-fade-panel', cfg.anim_fade_panel !== false);
+      setChk('island-set-fade-text', cfg.anim_fade_text !== false);
+      setVal('island-set-anim', cfg.anim_duration != null ? cfg.anim_duration : 320);
+      setVal('island-set-advance', cfg.island_advance_minutes != null ? cfg.island_advance_minutes : 2);
+      setVal('island-set-countdown', cfg.island_countdown_sec != null ? cfg.island_countdown_sec : 60);
+      var periods = cfg.island_periods || [];
+      for (var i = 0; i < 8; i++) {
+        var period = periods[i] || {};
+        var startEl = document.querySelector('[data-period-start="' + i + '"]');
+        var endEl = document.querySelector('[data-period-end="' + i + '"]');
+        if (startEl) startEl.value = period.start || '';
+        if (endEl) endEl.value = period.end || '';
+      }
+      var timetable = cfg.island_timetable || {};
+      var fillWeek = function (week, data) {
+        var inputs = document.querySelectorAll('#island-page [data-week="' + week + '"]');
+        for (var k = 0; k < inputs.length; k++) {
+          var courses = data[inputs[k].dataset.day] || [];
+          inputs[k].value = courses.filter(function (x) { return x; }).join(',');
+        }
+      };
+      fillWeek('odd', timetable);
+      fillWeek('even', cfg.island_timetable_even || {});
+      var paritySelect = document.getElementById('island-set-week-parity');
+      if (paritySelect) {
+        var anchor = String(cfg.island_week_anchor || '');
+        var parity = 'odd';
+        if (anchor) {
+          var parts = anchor.split('-');
+          var anchorDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+          var nowDate = new Date();
+          var monday = new Date(nowDate.getFullYear(), nowDate.getMonth(), nowDate.getDate() - ((nowDate.getDay() + 6) % 7));
+          var weeks = Math.round((monday.getTime() - anchorDate.getTime()) / 604800000);
+          parity = ((weeks % 2) + 2) % 2 === 0 ? 'odd' : 'even';
+        }
+        paritySelect.value = parity;
+      }
+    } catch (e) {}
+  },
+
+  async onIslandSettingChange(key, value) {
+    if (typeof value === 'string' && value !== '' && !isNaN(Number(value))) value = Number(value);
+    var params = {};
+    params[key] = value;
+    try {
+      var res = await window.electronAPI.updateSettingsConfig(params);
+      if (!res || !res.success) {
+        this.showToast('设置保存失败，请重试');
+        await this.loadIslandSettings();
+        return;
+      }
+      await this.loadIslandSettings();
+      this.showToast('灵动岛设置已更新');
+    } catch (e) {
+      this.showToast('设置保存失败，请重试');
+      await this.loadIslandSettings();
+    }
+  },
+
+  previewIsland() {
+    try { window.electronAPI.islandPreview(); } catch (e) {}
+  },
+
+  async onIslandScheduleChange() {
+    var periods = [];
+    for (var i = 0; i < 8; i++) {
+      var startEl = document.querySelector('[data-period-start="' + i + '"]');
+      var endEl = document.querySelector('[data-period-end="' + i + '"]');
+      if (!startEl || !endEl) continue;
+      periods.push({ name: '第' + (i + 1) + '节', start: startEl.value, end: endEl.value });
+    }
+    var timetable = {};
+    var timetableEven = {};
+    var oddInputs = document.querySelectorAll('#island-page [data-week="odd"]');
+    for (var d = 0; d < oddInputs.length; d++) {
+      timetable[oddInputs[d].dataset.day] = String(oddInputs[d].value || '').split(/[,，、\s]+/);
+    }
+    var evenInputs = document.querySelectorAll('#island-page [data-week="even"]');
+    for (var e = 0; e < evenInputs.length; e++) {
+      timetableEven[evenInputs[e].dataset.day] = String(evenInputs[e].value || '').split(/[,，、\s]+/);
+    }
+    try {
+      var res = await window.electronAPI.updateSettingsConfig({ island_periods: periods, island_timetable: timetable, island_timetable_even: timetableEven });
+      if (!res || !res.success) {
+        this.showToast('课程表保存失败，请重试');
+        await this.loadIslandSettings();
+        return;
+      }
+      await this.loadIslandSettings();
+      this.showToast('课程表已更新');
+    } catch (e) {
+      this.showToast('课程表保存失败，请重试');
+      await this.loadIslandSettings();
+    }
+  },
+
+  async onIslandWeekParityChange(value) {
+    var now = new Date();
+    var monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+    if (value === 'even') monday = new Date(monday.getTime() - 7 * 86400000);
+    var anchor = monday.getFullYear() + '-' + String(monday.getMonth() + 1).padStart(2, '0') + '-' + String(monday.getDate()).padStart(2, '0');
+    try {
+      var res = await window.electronAPI.updateSettingsConfig({ island_week_anchor: anchor });
+      if (!res || !res.success) {
+        this.showToast('单双周设置保存失败，请重试');
+        await this.loadIslandSettings();
+        return;
+      }
+      await this.loadIslandSettings();
+      this.showToast('已设为' + (value === 'even' ? '双周' : '单周'));
+    } catch (e) {
+      this.showToast('单双周设置保存失败，请重试');
+      await this.loadIslandSettings();
+    }
+  },
+
+  testIslandAlert() {
+    this.islandAlert('灵动岛提醒测试', 'success', 2200);
   },
 
   showToast(message, type) {
@@ -5496,7 +5514,7 @@ window.app = {
       div.classList.remove('show');
       setTimeout(function () { if (div.parentNode) div.remove(); }, 220);
     }, 2200);
-    if (this._islandData && message && message.length <= 40) {
+    if (message && message.length <= 40) {
       this.islandAlert(message, type || 'info', 2400);
     }
   },

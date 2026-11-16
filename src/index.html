@@ -20,26 +20,6 @@
     <div class="splash-copyright">请勿侵权，侵权必究，拒绝盗版</div>
   </div>
 
-  <!-- 灵动岛 -->
-  <div id="island" class="island">
-    <div class="island-head" onclick="app.toggleIsland()">
-      <span class="island-live"></span>
-      <span class="island-clock" id="island-clock">--:--</span>
-      <span class="island-sub" id="island-sub">正在加载…</span>
-      <svg class="island-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-    </div>
-    <div class="island-panel" id="island-panel">
-      <div class="island-date" id="island-date"></div>
-      <div class="island-rows" id="island-rows"></div>
-      <div class="island-actions">
-        <button type="button" onclick="app.showHomeworkPage()">作业登记</button>
-        <button type="button" onclick="app.showDutyPage()">值日表</button>
-        <button type="button" onclick="app.showMainMenu()">回到首页</button>
-        <button type="button" class="island-refresh" onclick="app.refreshIsland(true)">刷新</button>
-      </div>
-    </div>
-  </div>
-
   <!-- 主容器 -->
   <div id="app" class="app hidden">
     <!-- 品牌栏 -->
@@ -83,6 +63,10 @@
         <button class="nav-item" data-page="homework" onclick="app.showHomeworkPage()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>
           <span>作业登记</span>
+        </button>
+        <button class="nav-item" data-page="island" onclick="app.showIslandPage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="8" width="19" height="8" rx="4"/><circle cx="7.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M11.5 12h6"/></svg>
+          <span>灵动岛</span>
         </button>
         <button class="nav-item" data-page="grade" onclick="app.showRankSystem()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2-5.5-2.9-5.5 2.9 1-6.2L3 9.6l6.2-.9Z"/></svg>
@@ -259,7 +243,7 @@
                       <div class="status-row">
                         <div class="status-text">
                           <div class="status-name">当前版本</div>
-                          <div class="status-sub" id="home-version">v3.7.0</div>
+                          <div class="status-sub" id="home-version">v3.8.0</div>
                         </div>
                         <button class="pill pill-link" onclick="app.checkUpdateNow()">检查更新</button>
                       </div>
@@ -299,7 +283,7 @@
                   <span class="sb-sep">·</span>共 <span id="home-status-tables">0</span> 个表格
                   <span class="sb-sep">·</span><span id="home-status-students">0</span> 名学生
                 </div>
-                <div class="sb-right"><span id="home-status-version" class="version-info">v3.7.0</span></div>
+                <div class="sb-right"><span id="home-status-version" class="version-info">v3.8.0</span></div>
               </div>
             </div>
           </section>
@@ -549,6 +533,129 @@
             </div>
           </section>
 
+          <!-- 灵动岛 -->
+          <section id="island-page" class="section">
+            <div class="form-card">
+              <div class="form-head">
+                <h2>灵动岛</h2>
+                <p>在桌面顶部中央置顶显示，关闭主界面后仍会保留；打开课件等全屏应用时自动隐藏。</p>
+              </div>
+
+              <div class="island-setting-group">
+                <div class="island-setting-title">主岛</div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>显示灵动岛</b><span>在桌面顶部中央显示灵动岛</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-show" onchange="app.onIslandSettingChange('show_island', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>距屏幕顶部距离</b><span>灵动岛距离屏幕顶部的像素</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-top" min="0" max="100" step="1" onchange="app.onIslandSettingChange('island_top_margin', this.value)"><span>px</span></div>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>提醒条宽度</b><span>显示提醒时的胶囊宽度</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-alert-width" min="200" max="800" step="10" onchange="app.onIslandSettingChange('island_alert_width', this.value)"><span>px</span></div>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>提醒条停留</b><span>提醒显示的持续时间</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-alert-hold" min="100" max="5000" step="50" onchange="app.onIslandSettingChange('island_alert_hold_ms', this.value)"><span>ms</span></div>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>仅全屏时隐藏</b><span>打开课件等全屏应用时自动收起</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-fullscreen" onchange="app.onIslandSettingChange('island_hide_on_fullscreen', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>启用唤醒动画</b><span>收起时为圆形，展开后为胶囊</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-wake" onchange="app.onIslandSettingChange('island_show_wakeup_anim', this.checked)"><span class="slider"></span></label>
+                </div>
+              </div>
+
+              <div class="island-setting-group">
+                <div class="island-setting-title">课程表</div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>提前提醒</b><span>上课前提前显示「下节课」的分钟数</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-advance" min="0" max="60" step="1" onchange="app.onIslandSettingChange('island_advance_minutes', this.value)"><span>分钟</span></div>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>倒计时时长</b><span>上课前按秒倒计时的时长</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-countdown" min="10" max="600" step="5" onchange="app.onIslandSettingChange('island_countdown_sec', this.value)"><span>秒</span></div>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>本周是</b><span>用于单双周轮换，之后每周自动交替</span></div>
+                  <div class="island-setting-control"><select id="island-set-week-parity" onchange="app.onIslandWeekParityChange(this.value)"><option value="odd">单周</option><option value="even">双周</option></select></div>
+                </div>
+                <div class="island-schedule-title">节次时间</div>
+                <div class="island-schedule-list">
+                  <div class="island-schedule-row"><span class="island-schedule-label">第1节</span><input type="time" data-period-start="0" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="0" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第2节</span><input type="time" data-period-start="1" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="1" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第3节</span><input type="time" data-period-start="2" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="2" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第4节</span><input type="time" data-period-start="3" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="3" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第5节</span><input type="time" data-period-start="4" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="4" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第6节</span><input type="time" data-period-start="5" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="5" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第7节</span><input type="time" data-period-start="6" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="6" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">第8节</span><input type="time" data-period-start="7" onchange="app.onIslandScheduleChange()"><span class="island-schedule-sep">—</span><input type="time" data-period-end="7" onchange="app.onIslandScheduleChange()"></div>
+                </div>
+                <div class="island-schedule-title">单周课程 <span>用逗号分隔，如：语文,数学,英语；留空表示当天无课</span></div>
+                <div class="island-schedule-list">
+                  <div class="island-schedule-row"><span class="island-schedule-label">周一</span><input type="text" data-week="odd" data-day="0" placeholder="语文,数学,英语,物理,化学,生物,体育,自习" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周二</span><input type="text" data-week="odd" data-day="1" placeholder="数学,英语,语文,化学,物理,体育,自习" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周三</span><input type="text" data-week="odd" data-day="2" placeholder="英语,语文,数学,生物,化学,物理,自习" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周四</span><input type="text" data-week="odd" data-day="3" placeholder="物理,化学,数学,语文,英语,生物,体育" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周五</span><input type="text" data-week="odd" data-day="4" placeholder="化学,物理,英语,数学,语文,自习" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周六</span><input type="text" data-week="odd" data-day="5" placeholder="留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周日</span><input type="text" data-week="odd" data-day="6" placeholder="留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                </div>
+                <div class="island-schedule-title">双周课程 <span>与单周课程按周自动交替</span></div>
+                <div class="island-schedule-list">
+                  <div class="island-schedule-row"><span class="island-schedule-label">周一</span><input type="text" data-week="even" data-day="0" placeholder="用逗号分隔课程；留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周二</span><input type="text" data-week="even" data-day="1" placeholder="用逗号分隔课程；留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周三</span><input type="text" data-week="even" data-day="2" placeholder="用逗号分隔课程；留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周四</span><input type="text" data-week="even" data-day="3" placeholder="用逗号分隔课程；留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周五</span><input type="text" data-week="even" data-day="4" placeholder="用逗号分隔课程；留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周六</span><input type="text" data-week="even" data-day="5" placeholder="留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                  <div class="island-schedule-row"><span class="island-schedule-label">周日</span><input type="text" data-week="even" data-day="6" placeholder="留空表示无课" onchange="app.onIslandScheduleChange()"></div>
+                </div>
+              </div>
+
+              <div class="island-setting-group">
+                <div class="island-setting-title">副岛</div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>显示副岛</b><span>显示在主岛右侧，展示下节/本节课程提醒</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-sub" onchange="app.onIslandSettingChange('show_sub_island', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>默认收成圆形</b><span>副岛启动时收成一个圆点</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-sub-collapsed" onchange="app.onIslandSettingChange('sub_island_collapsed', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>无内容自动收起</b><span>展开后无操作自动收回，0 为不自动收起</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-sub-auto" min="0" max="120" step="1" onchange="app.onIslandSettingChange('sub_island_auto_collapse_sec', this.value)"><span>秒</span></div>
+                </div>
+              </div>
+
+              <div class="island-setting-group">
+                <div class="island-setting-title">动效</div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>面板展开时渐显</b><span>下拉面板以淡入方式展开</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-fade-panel" onchange="app.onIslandSettingChange('anim_fade_panel', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>文字变化时渐显</b><span>灵动岛文字切换时淡入淡出</span></div>
+                  <label class="switch"><input type="checkbox" id="island-set-fade-text" onchange="app.onIslandSettingChange('anim_fade_text', this.checked)"><span class="slider"></span></label>
+                </div>
+                <div class="island-setting-row">
+                  <div class="island-setting-text"><b>动画时长</b><span>胶囊展开与收起的过渡时长</span></div>
+                  <div class="island-setting-control"><input type="number" id="island-set-anim" min="100" max="2000" step="50" onchange="app.onIslandSettingChange('anim_duration', this.value)"><span>ms</span></div>
+                </div>
+              </div>
+
+              <div class="island-setting-actions">
+                <button class="btn btn-primary" onclick="app.previewIsland()">预览唤醒动画</button>
+                <button class="btn" onclick="app.testIslandAlert()">发送测试提醒</button>
+              </div>
+              <div class="island-setting-note">关闭主界面后，灵动岛会继续停留在桌面最上层；可右键灵动岛选择「打开主界面」或「退出程序」，也可通过系统托盘恢复主界面。设置修改后立即生效。</div>
+            </div>
+          </section>
+
           <!-- 设置 -->
           <section id="password-manage" class="section">
             <div class="form-card">
@@ -633,7 +740,7 @@
                 </div>
                 <div class="about-info">
                   <div class="about-row"><span class="about-label">制作者</span><span>高二3班 王大玮</span></div>
-                  <div class="about-row"><span class="about-label">当前版本</span><span id="about-version">3.7.0</span></div>
+                  <div class="about-row"><span class="about-label">当前版本</span><span id="about-version">3.8.0</span></div>
                   <div class="about-copyright">版权由制作者所有<br>请勿侵权，侵权必究，拒绝盗版</div>
                 </div>
                 <div class="about-changelog-title">历史更新内容</div>
@@ -881,7 +988,7 @@
           <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <h2>更新成功！</h2>
-        <p class="update-msg">已更新到 <span id="update-ver">v3.7.0</span></p>
+        <p class="update-msg">已更新到 <span id="update-ver">v3.8.0</span></p>
         <div class="update-changes" id="update-changes"></div>
         <p class="update-sub">感谢使用班级服务管理系统</p>
         <button class="btn btn-primary update-btn-glow" onclick="app.closeUpdateModal()">开始使用</button>
@@ -896,9 +1003,9 @@
         </div>
         <h2>发现新版本</h2>
         <div class="version-compare">
-          <div class="ver-box ver-old"><span class="ver-label">当前</span><span class="ver-num">v<span id="remote-update-cur">3.7.0</span></span></div>
+          <div class="ver-box ver-old"><span class="ver-label">当前</span><span class="ver-num">v<span id="remote-update-cur">3.8.0</span></span></div>
           <div class="ver-arrow">→</div>
-          <div class="ver-box ver-new"><span class="ver-label">最新</span><span class="ver-num">v<span id="remote-update-ver">3.7.0</span></span></div>
+          <div class="ver-box ver-new"><span class="ver-label">最新</span><span class="ver-num">v<span id="remote-update-ver">3.8.0</span></span></div>
         </div>
         <p style="color:var(--text-3);font-size:13px;margin:14px 0 0;">是否立即下载并安装更新？</p>
         <div style="display:flex;gap:8px;margin-top:14px;">

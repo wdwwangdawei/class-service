@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>灵动岛</title>
+<style>
+  :root {
+    --top: 6px;
+    --main-w: 240px;
+    --alert-width: 300px;
+    --dur: 320ms;
+    --dur-fast: 160ms;
+    --ring: #0a84ff;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: transparent;
+    font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  #island {
+    position: absolute;
+    left: 50%;
+    top: var(--top);
+    width: 240px;
+    height: 40px;
+    border-radius: 20px;
+    background: #1c1c1e;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    transition: width var(--dur) var(--ease), transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    will-change: width, transform, opacity;
+  }
+  body[data-state="mini"] #island { width: 48px; }
+  body[data-state="compact"] #island { width: 240px; }
+  body[data-state="alert"] #island { width: var(--alert-width); }
+  body[data-state="hidden"] #island {
+    width: 48px;
+    opacity: 0;
+    transform: translateX(-50%) translateY(calc(-40px - var(--top) - 12px));
+  }
+  #ringWrap {
+    flex: 0 0 48px;
+    width: 48px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #ringSvg { display: block; }
+  #ringProgress { transition: stroke-dashoffset 500ms ease, stroke 300ms ease; }
+  #textWrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 40px;
+    line-height: 40px;
+    padding: 0 14px 0 2px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  #islandText {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    white-space: nowrap;
+    opacity: 1;
+    transition: opacity 140ms ease;
+  }
+  body.fade-text #islandText.swapping { opacity: 0; }
+  #islandText.marquee { animation: marquee-scroll 6s ease-in-out infinite alternate; }
+  @keyframes marquee-scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(var(--shift, 0)); }
+  }
+  body[data-state="mini"] #textWrap { opacity: 0; }
+  body[data-state="mini"] #islandText { opacity: 0; }
+  body[data-state="alert"] #ringWrap { display: none; }
+  body[data-state="alert"] #textWrap {
+    padding: 0 18px;
+    text-align: center;
+  }
+  body[data-state="alert"] #islandText {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: top;
+  }
+  body[data-state="alert"][data-alert-type="success"] #islandText { color: #30d158; }
+  body[data-state="alert"][data-alert-type="error"] #islandText { color: #ff6961; }
+
+  #sub {
+    position: absolute;
+    top: var(--top);
+    left: 462px;
+    height: 40px;
+    border-radius: 20px;
+    background: #1c1c1e;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    white-space: nowrap;
+    cursor: pointer;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-16px) scale(0.92);
+    transition: left var(--dur) var(--ease), width var(--dur) var(--ease), padding var(--dur) var(--ease),
+                opacity var(--dur-fast) ease, transform var(--dur) var(--ease);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+  body.sub-on #sub { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
+  #sub.collapsed { width: 40px; padding: 0; justify-content: center; }
+  #subText {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: opacity var(--dur-fast) ease;
+  }
+  #sub.collapsed #subText { opacity: 0; width: 0; }
+  #subDot {
+    display: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #0a84ff;
+  }
+  #sub.collapsed #subDot { display: block; }
+
+  #panel {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--top) + 44px);
+    width: 300px;
+    background: #1c1c1e;
+    border-radius: 8px;
+    color: #f2f2f7;
+    overflow: hidden;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateX(-50%) translateY(-6px) scale(0.985);
+    transform-origin: top center;
+    transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease), visibility var(--dur-fast) ease;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+  #panel.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  body:not(.fade-panel) #panel { transition: none; }
+  .p-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 38px;
+    padding: 0 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  #panelDate { font-size: 13px; font-weight: 700; letter-spacing: 0.2px; }
+  #panelUpdated { font-size: 11px; color: #8e8e93; }
+  .p-rows { padding: 4px 0; }
+  .p-course {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: 12.5px;
+  }
+  .p-tag {
+    flex: 0 0 auto;
+    height: 18px;
+    line-height: 18px;
+    padding: 0 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .tag-period { color: #64b5ff; background: rgba(10, 132, 255, 0.16); }
+  .p-course .p-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: #f2f2f7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .p-course .p-time {
+    flex: 0 0 auto;
+    color: #8e8e93;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .p-course.current { background: rgba(48, 209, 88, 0.12); }
+  .p-course.current .p-name { color: #30d158; font-weight: 700; }
+  .p-course.next .p-name { color: #64b5ff; }
+  .p-empty {
+    padding: 16px 14px;
+    text-align: center;
+    color: #8e8e93;
+    font-size: 12.5px;
+  }
+  .p-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    padding: 8px 10px 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+  }
+  .p-actions button {
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.09);
+    color: #f2f2f7;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+  .p-actions button:hover { background: rgba(255, 255, 255, 0.16); }
+  .p-actions button[data-action="open"] { background: #0a84ff; }
+  .p-actions button[data-action="open"]:hover { background: #3395ff; }
+</style>
+</head>
+<body data-state="hidden" data-alert-type="info">
+  <div id="island">
+    <div id="ringWrap">
+      <svg id="ringSvg" width="28" height="28" viewBox="0 0 28 28">
+        <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="3"></circle>
+        <circle id="ringProgress" cx="14" cy="14" r="11" fill="none" stroke="#0a84ff" stroke-width="3"
+                stroke-linecap="round" stroke-dasharray="69.12" stroke-dashoffset="69.12"
+                transform="rotate(-90 14 14)"></circle>
+      </svg>
+    </div>
+    <div id="textWrap"><span id="islandText">今日无课</span></div>
+  </div>
+
+  <div id="sub" class="collapsed">
+    <span id="subText"></span>
+    <span id="subDot"></span>
+  </div>
+
+  <div id="panel">
+    <div class="p-head"><span id="panelDate">—</span><span id="panelUpdated">实时</span></div>
+    <div class="p-rows" id="panelCourses"></div>
+    <div class="p-actions">
+      <button data-action="settings">灵动岛设置</button>
+      <button data-action="refresh">刷新</button>
+      <button data-action="open">打开主界面</button>
+    </div>
+  </div>
+
+  <script>
+    const api = window.islandAPI;
+    const island = document.getElementById('island');
+    const sub = document.getElementById('sub');
+    const subText = document.getElementById('subText');
+    const panel = document.getElementById('panel');
+    const textEl = document.getElementById('islandText');
+    const ringProgress = document.getElementById('ringProgress');
+
+    const RING_LENGTH = 69.12;
+    const state = {
+      config: {
+        show_island: true,
+        island_top_margin: 6,
+        island_alert_width: 300,
+        island_alert_hold_ms: 600,
+        island_hide_on_fullscreen: true,
+        island_show_wakeup_anim: true,
+        show_sub_island: false,
+        sub_island_collapsed: false,
+        sub_island_auto_collapse_sec: 5,
+        anim_fade_panel: true,
+        anim_fade_text: true,
+        anim_duration: 320
+      },
+      locked: false,
+      visible: false,
+      phase: 'hidden',
+      alertType: 'info',
+      alertTimer: null,
+      panelTimer: null,
+      panelOpen: false,
+      subCollapsed: true,
+      subTimer: null,
+      data: null,
+      schedule: null,
+      status: null,
+      lastText: '',
+      lastSubText: '',
+      lastInteractive: null,
+      lastMouse: { x: -1, y: -1 }
+    };
+
+    function clamp(n, min, max, fallback) {
+      const v = parseInt(n, 10);
+      if (isNaN(v)) return fallback;
+      return Math.max(min, Math.min(max, v));
+    }
+
+    function currentSchedule() {
+      return state.schedule || (state.data && state.data.schedule) || null;
+    }
+
+    function dayCourses(schedule, now) {
+      const key = String((now.getDay() + 6) % 7);
+      const courses = (schedule.timetable && schedule.timetable[key]) || [];
+      const list = [];
+      (schedule.periods || []).forEach(function (period, index) {
+        const course = String(courses[index] || '').trim();
+        if (!course) return;
+        list.push({ index: index, period: period.name, course: course, start: period.start, end: period.end });
+      });
+      return list;
+    }
+
+    function timeToDate(now, hhmm) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || '').trim());
+      if (!m) return null;
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), Number(m[1]), Number(m[2]), 0, 0);
+    }
+
+    function computeStatus(schedule, now) {
+      const courses = dayCourses(schedule, now);
+      if (!courses.length) return { status: 'none' };
+      const advanceSec = Math.max(0, Number(schedule.advanceMinutes) || 0) * 60;
+      for (let i = 0; i < courses.length; i++) {
+        const item = courses[i];
+        const rawStart = timeToDate(now, item.start);
+        let rawEnd = timeToDate(now, item.end);
+        if (!rawStart || !rawEnd) continue;
+        if (rawEnd <= rawStart) rawEnd = new Date(rawEnd.getTime() + 24 * 3600 * 1000);
+        const start = new Date(rawStart.getTime() - advanceSec * 1000);
+        const end = rawEnd;
+        if (now >= start && now <= end) {
+          const remainSec = Math.max(0, Math.floor((end.getTime() - now.getTime()) / 1000));
+          return {
+            status: 'ongoing', course: item.course, period: item.period,
+            start: item.start, end: item.end, index: item.index,
+            remainSec: remainSec,
+            remainMin: Math.max(1, Math.ceil(remainSec / 60)),
+            durationSec: Math.max(1, Math.floor((end.getTime() - start.getTime()) / 1000))
+          };
+        }
+        if (now < start) {
+          const untilSec = Math.max(0, Math.floor((start.getTime() - now.getTime()) / 1000));
+          return {
+            status: 'upcoming', course: item.course, period: item.period,
+            start: item.start, index: item.index, untilSec: untilSec,
+            untilMin: Math.max(1, Math.ceil(untilSec / 60)), advanceSec: advanceSec
+          };
+        }
+      }
+      return { status: 'done' };
+    }
+
+    function statusText(schedule, status) {
+      if (!status) return '今日无课';
+      if (status.status === 'upcoming') {
+        const countdownSec = (schedule && schedule.countdownSec) || 60;
+        if (status.untilSec <= countdownSec) return '下节 ' + status.course + ' · ' + status.untilSec + 's';
+        return '下节 ' + status.course + ' · ' + status.untilMin + '分钟后';
+      }
+      if (status.status === 'ongoing') return '本节：' + status.course + ' 还剩 ' + status.remainMin + '分钟';
+      if (status.status === 'none') return '今日无课';
+      return '今日课程已结束';
+    }
+
+    function subStatusText(status) {
+      if (!status) return '';
+      if (status.status === 'upcoming') return '下节 ' + status.course + ' · ' + status.start;
+      if (status.status === 'ongoing') return '本节 ' + status.course + ' · 至 ' + status.end;
+      if (status.status === 'none') return '今日无课';
+      return '今日课程已结束';
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch];
+      });
+    }
+
+    function refreshSchedule(forceText) {
+      const schedule = currentSchedule();
+      state.status = schedule ? computeStatus(schedule, new Date()) : null;
+      updateRing();
+      if (schedule) {
+        const text = statusText(schedule, state.status);
+        if (state.phase === 'compact' || state.phase === 'mini') {
+          if (forceText || text !== state.lastText) {
+            state.lastText = text;
+            setText(text);
+          }
+        }
+      }
+      if (state.panelOpen) renderPanel();
+      renderSub();
+    }
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      const merged = Object.assign({}, state.config, cfg);
+      state.config = merged;
+      if (merged.schedule) state.schedule = merged.schedule;
+      const root = document.documentElement.style;
+      root.setProperty('--top', clamp(merged.island_top_margin, 0, 100, 6) + 'px');
+      root.setProperty('--alert-width', clamp(merged.island_alert_width, 200, 800, 300) + 'px');
+      const dur = clamp(merged.anim_duration, 100, 2000, 320);
+      root.setProperty('--dur', dur + 'ms');
+      root.setProperty('--dur-fast', Math.max(90, Math.round(dur / 2)) + 'ms');
+      document.body.classList.toggle('fade-panel', merged.anim_fade_panel !== false);
+      document.body.classList.toggle('fade-text', merged.anim_fade_text !== false);
+      state.subCollapsed = merged.sub_island_collapsed === true;
+      document.body.classList.toggle('sub-on', merged.show_sub_island === true && !!subText.textContent);
+      updateSubLayout();
+      renderSub();
+      updateRing();
+      setMainWidthVar();
+      refreshSchedule(false);
+    }
+
+    function setMainWidthVar() {
+      let width = 240;
+      if (state.phase === 'mini' || state.phase === 'hidden') width = 48;
+      if (state.phase === 'alert') width = clamp(state.config.island_alert_width, 200, 800, 300);
+      document.documentElement.style.setProperty('--main-w', width + 'px');
+      updateSubLayout();
+    }
+
+    function updateSubLayout() {
+      const width = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--main-w'), 10) || 240;
+      const left = Math.round(window.innerWidth / 2 + width / 2 + 8);
+      sub.style.left = left + 'px';
+    }
+
+    function setText(text, isAlert) {
+      const value = String(text == null ? '' : text);
+      const apply = () => {
+        textEl.textContent = value;
+        textEl.classList.remove('marquee');
+        textEl.style.removeProperty('--shift');
+        if (!isAlert) {
+          requestAnimationFrame(() => {
+            const wrap = textEl.parentElement;
+            const overflow = textEl.scrollWidth - wrap.clientWidth;
+            if (overflow > 2) {
+              textEl.style.setProperty('--shift', (-overflow) + 'px');
+              textEl.style.animationDuration = Math.max(4, Math.round(overflow / 22)) + 's';
+              textEl.classList.add('marquee');
+            }
+          });
+        }
+      };
+      if (state.config.anim_fade_text !== false && state.phase !== 'alert') {
+        textEl.classList.add('swapping');
+        setTimeout(() => {
+          apply();
+          textEl.classList.remove('swapping');
+        }, 140);
+      } else {
+        apply();
+      }
+    }
+
+    function setPhase(phase) {
+      state.phase = phase;
+      document.body.dataset.state = phase;
+      setMainWidthVar();
+      if (phase === 'compact' || phase === 'mini') {
+        refreshSchedule(true);
+      }
+    }
+
+    function updateRing() {
+      const schedule = currentSchedule();
+      const status = state.status;
+      let ratio = 0;
+      let color = '#8a8a8e';
+      if (schedule && status) {
+        if (status.status === 'upcoming') {
+          const total = Math.max(1, status.advanceSec || 0, status.untilSec || 0);
+          ratio = status.untilSec / total;
+          color = '#4da3ff';
+        } else if (status.status === 'ongoing') {
+          ratio = status.remainSec / Math.max(1, status.durationSec || 0);
+          color = '#30d158';
+        }
+      }
+      ringProgress.style.stroke = color;
+      ringProgress.style.strokeDashoffset = String(RING_LENGTH * (1 - Math.max(0, Math.min(1, ratio))));
+    }
+
+    function isActuallyVisible() {
+      const cfg = state.config;
+      return cfg.show_island !== false && !state.locked;
+    }
+
+    function wake() {
+      if (!state.visible) return;
+      clearTimeout(state.alertTimer);
+      state.alertTimer = null;
+      closePanel();
+      if (state.config.island_show_wakeup_anim !== false) {
+        setPhase('hidden');
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (!state.visible) return;
+            setPhase('mini');
+            setTimeout(() => {
+              if (state.visible && state.phase === 'mini') setPhase('compact');
+            }, 110);
+          });
+        });
+      } else {
+        setPhase('compact');
+      }
+    }
+
+    function sleep() {
+      clearTimeout(state.alertTimer);
+      state.alertTimer = null;
+      closePanel();
+      if (state.phase === 'hidden') return;
+      setPhase('mini');
+      setTimeout(() => {
+        if (!state.visible) setPhase('hidden');
+      }, 120);
+    }
+
+    function showAlert(payload) {
+      if (!state.visible) return;
+      const text = String((payload && payload.text) || '').trim();
+      if (!text) return;
+      const hold = clamp(payload.ms || state.config.island_alert_hold_ms, 100, 5000, 600);
+      state.alertType = payload.type === 'success' ? 'success' : (payload.type === 'error' ? 'error' : 'info');
+      document.body.dataset.alertType = state.alertType;
+      closePanel();
+      setPhase('alert');
+      setText(text.length > 26 ? text.slice(0, 25) + '…' : text, true);
+      clearTimeout(state.alertTimer);
+      state.alertTimer = setTimeout(() => {
+        state.alertTimer = null;
+        if (state.visible) {
+          setPhase('compact');
+          loadData();
+        }
+      }, hold);
+    }
+
+    function openPanel() {
+      if (state.panelOpen) return;
+      state.panelOpen = true;
+      panel.classList.add('open');
+      renderPanel();
+      schedulePanelClose();
+    }
+
+    function closePanel() {
+      if (!state.panelOpen) return;
+      state.panelOpen = false;
+      panel.classList.remove('open');
+      if (state.panelTimer) {
+        clearTimeout(state.panelTimer);
+        state.panelTimer = null;
+      }
+    }
+
+    function togglePanel() {
+      if (state.panelOpen) closePanel();
+      else openPanel();
+    }
+
+    function schedulePanelClose() {
+      if (state.panelTimer) clearTimeout(state.panelTimer);
+      state.panelTimer = setTimeout(() => {
+        state.panelTimer = null;
+        closePanel();
+      }, 3000);
+    }
+
+    function renderPanel() {
+      const data = state.data;
+      const schedule = currentSchedule();
+      if (!data && !schedule) return;
+      document.getElementById('panelDate').textContent = (data && data.dateText) || '—';
+      const wrap = document.getElementById('panelCourses');
+      if (!schedule) {
+        wrap.innerHTML = '<div class="p-empty">今日无课</div>';
+        return;
+      }
+      const now = new Date();
+      const status = computeStatus(schedule, now);
+      state.status = status;
+      const courses = dayCourses(schedule, now);
+      if (!courses.length) {
+        wrap.innerHTML = '<div class="p-empty">' + (status.status === 'done' ? '今日课程已结束' : '今日无课') + '</div>';
+      } else {
+        wrap.innerHTML = courses.map(function (item) {
+          let cls = 'p-course';
+          if (status.status === 'ongoing' && item.index === status.index) cls += ' current';
+          else if (status.status === 'upcoming' && item.index === status.index) cls += ' next';
+          return '<div class="' + cls + '">' +
+            '<span class="p-tag tag-period">' + escapeHtml(item.period) + '</span>' +
+            '<span class="p-name">' + escapeHtml(item.course) + '</span>' +
+            '<span class="p-time">' + escapeHtml(item.start) + '-' + escapeHtml(item.end) + '</span>' +
+            '</div>';
+        }).join('');
+      }
+      document.getElementById('panelUpdated').textContent = (schedule.weekLabel ? schedule.weekLabel + ' · ' : '') + '实时';
+    }
+
+    function renderSub() {
+      const cfg = state.config;
+      const schedule = currentSchedule();
+      const status = state.status || (schedule ? computeStatus(schedule, new Date()) : null);
+      const text = status ? subStatusText(status) : '';
+      if (text !== state.lastSubText) {
+        state.lastSubText = text;
+        subText.textContent = text || '—';
+      }
+      sub.classList.toggle('collapsed', state.subCollapsed !== false);
+      document.body.classList.toggle('sub-on', cfg.show_sub_island === true && !!text);
+      updateSubLayout();
+    }
+
+    function scheduleSubCollapse() {
+      if (state.subTimer) clearTimeout(state.subTimer);
+      state.subTimer = null;
+      const sec = clamp(state.config.sub_island_auto_collapse_sec, 0, 120, 5);
+      if (sec <= 0 || state.subCollapsed) return;
+      state.subTimer = setTimeout(() => {
+        state.subTimer = null;
+        state.subCollapsed = true;
+        renderSub();
+      }, sec * 1000);
+    }
+
+    async function loadData() {
+      try {
+        const res = await api.getData();
+        if (res && res.success && res.data) {
+          state.data = res.data;
+          if (res.data.schedule) state.schedule = res.data.schedule;
+          refreshSchedule(false);
+        }
+      } catch (e) {}
+    }
+
+    function hitTest(x, y) {
+      const targets = [island];
+      if (state.panelOpen) targets.push(panel);
+      if (document.body.classList.contains('sub-on')) targets.push(sub);
+      for (const el of targets) {
+        const r = el.getBoundingClientRect();
+        if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return true;
+      }
+      return false;
+    }
+
+    function setInteractive(v) {
+      if (state.lastInteractive === v) return;
+      state.lastInteractive = v;
+      api.setInteractive(v);
+    }
+
+    island.addEventListener('click', () => {
+      if (state.phase === 'alert' || state.phase === 'hidden') return;
+      togglePanel();
+    });
+
+    island.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      api.showMenu();
+    });
+
+    sub.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.subCollapsed = !state.subCollapsed;
+      renderSub();
+      if (!state.subCollapsed) scheduleSubCollapse();
+      else if (state.subTimer) { clearTimeout(state.subTimer); state.subTimer = null; }
+    });
+
+    sub.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      api.setSetting('show_sub_island', false);
+    });
+
+    panel.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-action]');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      if (action === 'settings') api.openSettings();
+      else if (action === 'open') api.openMain();
+      else if (action === 'refresh') {
+        api.refresh();
+        loadData();
+        const weekLabel = currentSchedule() && currentSchedule().weekLabel;
+        document.getElementById('panelUpdated').textContent = '已刷新';
+        setTimeout(() => {
+          document.getElementById('panelUpdated').textContent = (weekLabel ? weekLabel + ' · ' : '') + '实时';
+        }, 1200);
+      }
+    });
+
+    panel.addEventListener('mouseenter', () => {
+      if (state.panelTimer) { clearTimeout(state.panelTimer); state.panelTimer = null; }
+    });
+
+    panel.addEventListener('mouseleave', schedulePanelClose);
+
+    document.addEventListener('mousemove', (e) => {
+      state.lastMouse = { x: e.clientX, y: e.clientY };
+      const over = hitTest(e.clientX, e.clientY);
+      setInteractive(over);
+      if (over && state.panelOpen && !state.panelTimer) schedulePanelClose();
+    });
+
+    document.addEventListener('mouseleave', () => {
+      setInteractive(false);
+    });
+
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+
+    api.onVisibility((visible) => {
+      state.visible = visible === true;
+      if (state.visible) wake();
+      else sleep();
+    });
+
+    api.onConfig((cfg) => {
+      applyConfig(cfg);
+      renderSub();
+      if (state.visible) {
+        if (state.phase === 'hidden') wake();
+      }
+    });
+
+    api.onAlert((payload) => showAlert(payload));
+
+    api.onData((data) => {
+      if (!data) return;
+      state.data = data;
+      if (data.schedule) state.schedule = data.schedule;
+      refreshSchedule(false);
+    });
+
+    api.onLocked((locked) => {
+      state.locked = locked === true;
+      if (state.locked) {
+        state.visible = false;
+        sleep();
+      } else if (isActuallyVisible()) {
+        api.getState().then((res) => {
+          if (res && res.config) applyConfig(res.config);
+          state.visible = true;
+          wake();
+        }).catch(() => {});
+      }
+    });
+
+    api.onPreview(() => {
+      state.visible = true;
+      state.locked = false;
+      sleep();
+      setTimeout(() => {
+        state.visible = true;
+        wake();
+      }, 420);
+      api.getState().then((res) => {
+        if (res) {
+          applyConfig(res.config);
+          state.locked = res.locked === true;
+          state.visible = !state.locked && (res.config ? res.config.show_island !== false : true);
+        }
+      }).catch(() => {});
+    });
+
+    window.addEventListener('resize', updateSubLayout);
+
+    (async function init() {
+      try {
+        const res = await api.getState();
+        if (res) {
+          state.locked = res.locked === true;
+          applyConfig(res.config);
+        }
+      } catch (e) {}
+      await loadData();
+      setPhase('hidden');
+      setTimeout(() => {
+        if (!state.locked && state.config.show_island !== false) {
+          state.visible = true;
+          wake();
+        }
+      }, 80);
+      setInterval(loadData, 20000);
+      setInterval(function () {
+        if (!state.visible || state.phase === 'alert' || state.phase === 'hidden') return;
+        refreshSchedule(false);
+      }, 1000);
+    })();
+  </script>
+</body>
+</html>

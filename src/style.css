@@ -1,5 +1,5 @@
 /* =========================================================================
-   班级服务管理系统 v3.7.0 — Fluent (Win11 / Office) 浅色主题
+   班级服务管理系统 v3.8.0 — Fluent (Win11 / Office) 浅色主题
    说明：本文件只负责表现层，完全兼容 app.js 使用的既有类名与内联结构。
    ========================================================================= */
 
@@ -1348,55 +1348,54 @@ body.app-locked .sidebar { pointer-events: none; opacity: .35; filter: grayscale
   .roster-row { grid-template-columns: 30px minmax(100px, 1fr) 56px minmax(100px, 1.4fr) 56px; }
 }
 
-/* --- 灵动岛 --- */
-.island {
-  position: fixed; top: 8px; left: 50%; z-index: 1200;
-  min-width: 236px; max-width: min(92vw, 620px);
-  background: rgba(20, 21, 23, 0.94); color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 22px;
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.28), 0 2px 8px rgba(15, 23, 42, 0.22);
-  -webkit-backdrop-filter: blur(18px) saturate(140%); backdrop-filter: blur(18px) saturate(140%);
-  overflow: hidden; opacity: 0; pointer-events: none;
-  transform: translateX(-50%) translateY(-10px);
-  transition: opacity .32s ease, transform .32s cubic-bezier(.22, .8, .24, 1), border-radius .32s ease;
+/* --- 灵动岛设置 --- */
+#island-page { overflow-y: auto; padding: 18px 22px 26px; align-items: center; }
+#island-page .form-card { max-width: 720px; }
+#island-page .form-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+#island-page .form-head h2 { white-space: nowrap; }
+.island-setting-group { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.island-setting-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.island-setting-row { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 9px 0; }
+.island-setting-text { min-width: 0; }
+.island-setting-text b { display: block; font-size: 13px; font-weight: 500; color: var(--text); }
+.island-setting-text span { display: block; font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.island-setting-control { display: flex; align-items: center; gap: 6px; color: var(--text-3); font-size: 12px; flex: 0 0 auto; }
+.island-setting-control input {
+  width: 92px; height: 32px; padding: 0 8px; text-align: right;
+  font-family: inherit; font-size: 13px;
 }
-.island.show { opacity: 1; pointer-events: auto; transform: translateX(-50%) translateY(0); }
-.island.open { border-radius: 24px; }
-.island-head { display: flex; align-items: center; gap: 9px; height: 38px; padding: 0 15px; cursor: pointer; user-select: none; }
-.island-live {
-  width: 8px; height: 8px; border-radius: 50%; background: #39d98a; flex: 0 0 auto;
-  box-shadow: 0 0 0 3px rgba(57, 217, 138, 0.14);
-  animation: islandPulse 2.4s ease-in-out infinite;
+.island-setting-control select {
+  height: 32px; padding: 0 8px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); background: var(--surface); color: var(--text);
+  font-family: inherit; font-size: 13px;
 }
-@keyframes islandPulse {
-  0%, 100% { box-shadow: 0 0 0 3px rgba(57, 217, 138, 0.14); }
-  50% { box-shadow: 0 0 0 6px rgba(57, 217, 138, 0.05); }
+.island-setting-actions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.island-schedule-title { margin-top: 12px; font-size: 12px; font-weight: 600; color: var(--text-2); }
+.island-schedule-title span { margin-left: 6px; font-weight: 400; color: var(--text-3); }
+.island-schedule-list { margin-top: 6px; display: flex; flex-direction: column; gap: 6px; }
+.island-schedule-row { display: flex; align-items: center; gap: 8px; }
+.island-schedule-label { flex: 0 0 52px; font-size: 12.5px; color: var(--text-2); }
+.island-schedule-sep { color: var(--text-3); font-size: 12px; }
+.island-schedule-row input[type="time"] {
+  width: 108px; height: 32px; padding: 0 8px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font-family: inherit; font-size: 13px;
 }
-.island-clock { font-size: 13px; font-weight: 700; letter-spacing: .4px; }
-.island-sub { font-size: 12px; color: rgba(255, 255, 255, 0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
-.island-chev { width: 14px; height: 14px; color: rgba(255, 255, 255, 0.55); flex: 0 0 auto; margin-left: 2px; transition: transform .32s ease; }
-.island.open .island-chev { transform: rotate(180deg); }
-.island-panel { max-height: 0; opacity: 0; overflow: hidden; padding: 0 16px; transition: max-height .38s cubic-bezier(.22, .8, .24, 1), opacity .22s ease, padding .38s ease; }
-.island.open .island-panel { max-height: 380px; opacity: 1; padding: 2px 16px 14px; }
-.island-date { font-size: 12px; color: rgba(255, 255, 255, 0.55); padding: 2px 0 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
-.island-rows { display: flex; flex-direction: column; gap: 9px; padding: 12px 0 14px; }
-.island-row { display: flex; gap: 10px; font-size: 12.5px; line-height: 1.55; }
-.island-row-ico { width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; flex: 0 0 auto; margin-top: 1px; }
-.island-row-ico.ico-blue { background: #3b82f6; }
-.island-row-ico.ico-green { background: #22c55e; }
-.island-row-ico.ico-amber { background: #f59e0b; }
-.island-row-text { min-width: 0; }
-.island-row-text b { display: block; font-size: 12px; font-weight: 600; color: rgba(255, 255, 255, 0.92); }
-.island-row-text span { color: rgba(255, 255, 255, 0.62); word-break: break-all; }
-.island-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.island-actions button { border: 0; border-radius: 9px; padding: 6px 12px; font-size: 12px; font-family: inherit; color: rgba(255, 255, 255, 0.85); background: rgba(255, 255, 255, 0.1); cursor: pointer; transition: background .18s ease, transform .18s ease; }
-.island-actions button:hover { background: rgba(255, 255, 255, 0.2); }
-.island-actions button:active { transform: scale(.96); }
-.island-actions .island-refresh { margin-left: auto; color: #8ec5ff; }
-.island.alert .island-live { background: #fbbf24; box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.18); animation: none; }
-.island.alert .island-sub { color: #ffe7a3; }
-body.app-locked .island { display: none; }
-@media (max-width: 760px) { .island-sub { max-width: 180px; } }
+.island-schedule-row input[type="text"] {
+  flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); font-family: inherit; font-size: 13px;
+}
+.island-schedule-row input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-soft-2); }
+.island-setting-note {
+  margin-top: 14px; padding: 10px 12px; border-radius: 8px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text-3); font-size: 12px; line-height: 1.7;
+}
+@media (max-width: 760px) {
+  .island-setting-row { align-items: flex-start; }
+  .island-setting-control input { width: 76px; }
+}
 
 /* --- 打印：仅输出当前页面主体 --- */
 @media print {

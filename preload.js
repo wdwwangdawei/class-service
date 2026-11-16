@@ -57,7 +57,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dutySave: (duty) => ipcRenderer.invoke('duty-save', duty),
   homeworkGet: () => ipcRenderer.invoke('homework-get'),
   homeworkSave: (record) => ipcRenderer.invoke('homework-save', record),
-  homeworkDelete: (id) => ipcRenderer.invoke('homework-delete', id)
+  homeworkDelete: (id) => ipcRenderer.invoke('homework-delete', id),
+  islandAlert: (text, type, ms) => ipcRenderer.invoke('island-alert', { text: String(text || ''), type: type || 'info', ms: ms || 0 }),
+  islandRefresh: () => ipcRenderer.invoke('island-refresh'),
+  islandSetLocked: (locked) => ipcRenderer.invoke('island-set-locked', locked === true),
+  islandPreview: () => ipcRenderer.invoke('island-preview'),
+  islandOpenSettings: () => ipcRenderer.invoke('island-open-settings'),
+  onOpenIslandSettings: (cb) => ipcRenderer.on('open-island-settings', () => cb()),
+  onIslandNavigate: (cb) => ipcRenderer.on('island-navigate', (e, page) => cb(page))
 });
 
 
