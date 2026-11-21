@@ -6,6 +6,20 @@ const https = require('https');
 const { exec } = require('child_process');
 const XLSX = require('xlsx');
 
+// ===== 单实例锁：重复启动只唤起已有主界面，不再新开进程 =====
+const isUninstallMode = process.argv.includes('--uninstall');
+const isAutostartLaunch = process.argv.includes('--autostart');
+const gotSingleInstanceLock = isUninstallMode || app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else if (!isUninstallMode) {
+  app.on('second-instance', (event, argv) => {
+    // 开机自启动的重复调用不弹主界面
+    if (Array.isArray(argv) && argv.includes('--autostart')) return;
+    showMainWindow();
+  });
+}
+
 // ===== 自动更新配置（GitHub）=====
 const GITHUB_REPO = 'wdwwangdawei/class-service';
 const GITHUB_API = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
@@ -89,7 +103,8 @@ const DEFAULT_ISLAND_PERIODS = [
   { name: '第5节', start: '14:00', end: '14:45' },
   { name: '第6节', start: '14:55', end: '15:40' },
   { name: '第7节', start: '16:00', end: '16:45' },
-  { name: '第8节', start: '16:55', end: '17:40' }
+  { name: '第8节', start: '16:55', end: '17:40' },
+  { name: '第9节', start: '17:50', end: '18:35' }
 ];
 const DEFAULT_ISLAND_TIMETABLE = {
   '0': ['语文', '数学', '英语', '物理', '化学', '生物', '体育', '自习'],
@@ -257,7 +272,7 @@ function islandSubText(status) {
 function loadConfig() {
   ensureDataDir();
   if (!fs.existsSync(CONFIG_FILE)) {
-    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light', show_island: true, island_top_margin: 6, island_alert_width: 300, island_alert_hold_ms: 600, island_hide_on_fullscreen: true, island_show_wakeup_anim: true, show_sub_island: false, sub_island_collapsed: false, sub_island_auto_collapse_sec: 5, anim_fade_panel: true, anim_fade_text: true, anim_duration: 320, island_advance_minutes: 2, island_countdown_sec: 60, island_periods: DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: islandDateString(islandMonday(new Date())) };
+    const defaultConfig = { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light', show_island: true, island_auto_start: true, island_top_margin: 6, island_alert_width: 300, island_alert_hold_ms: 600, island_hide_on_fullscreen: true, island_show_wakeup_anim: true, show_sub_island: false, sub_island_collapsed: false, sub_island_auto_collapse_sec: 5, anim_fade_panel: true, anim_fade_text: true, anim_duration: 320, island_advance_minutes: 2, island_countdown_sec: 60, island_periods: DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: islandDateString(islandMonday(new Date())) };
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2), 'utf-8');
     return defaultConfig;
   }
@@ -292,6 +307,10 @@ function loadConfig() {
     if (config.themeSkin === undefined) config.themeSkin = 'default';
     if (config.displayTheme === undefined) config.displayTheme = 'light';
     if (config.show_island === undefined) config.show_island = true;
+    if (config.island_auto_start === undefined) {
+      config.island_auto_start = config.show_island !== false;
+      configChanged = true;
+    }
     if (config.island_top_margin === undefined) config.island_top_margin = 6;
     if (config.island_alert_width === undefined) config.island_alert_width = 300;
     if (config.island_alert_hold_ms === undefined) config.island_alert_hold_ms = 600;
@@ -306,6 +325,11 @@ function loadConfig() {
     if (config.island_advance_minutes === undefined) config.island_advance_minutes = 2;
     if (config.island_countdown_sec === undefined) config.island_countdown_sec = 60;
     if (config.island_periods === undefined) config.island_periods = DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p));
+    // 旧版固定 8 节，升级后自动补上第9节默认时间
+    if (Array.isArray(config.island_periods) && config.island_periods.length === 8) {
+      config.island_periods = config.island_periods.concat([Object.assign({}, DEFAULT_ISLAND_PERIODS[8])]);
+      configChanged = true;
+    }
     if (config.island_timetable === undefined) config.island_timetable = JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE));
     if (config.island_timetable_even === undefined) {
       config.island_timetable_even = JSON.parse(JSON.stringify(config.island_timetable || DEFAULT_ISLAND_TIMETABLE));
@@ -319,7 +343,7 @@ function loadConfig() {
     if (configChanged) saveConfig(config);
     return config;
   } catch (e) {
-    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light', show_island: true, island_top_margin: 6, island_alert_width: 300, island_alert_hold_ms: 600, island_hide_on_fullscreen: true, island_show_wakeup_anim: true, show_sub_island: false, sub_island_collapsed: false, sub_island_auto_collapse_sec: 5, anim_fade_panel: true, anim_fade_text: true, anim_duration: 320, island_advance_minutes: 2, island_countdown_sec: 60, island_periods: DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: islandDateString(islandMonday(new Date())) };
+    return { password: '', passwordEnabled: false, uninstallPasswordEnabled: false, lastRunVersion: '', soundEnabled: true, soundVolume: 50, language: 'zh', fontFamily: 'Microsoft YaHei', bgmEnabled: false, bgmVolume: 30, passwordLocked: false, tablesLocked: false, autoSave: true, autoLock: false, themeSkin: 'default', displayTheme: 'light', show_island: true, island_auto_start: true, island_top_margin: 6, island_alert_width: 300, island_alert_hold_ms: 600, island_hide_on_fullscreen: true, island_show_wakeup_anim: true, show_sub_island: false, sub_island_collapsed: false, sub_island_auto_collapse_sec: 5, anim_fade_panel: true, anim_fade_text: true, anim_duration: 320, island_advance_minutes: 2, island_countdown_sec: 60, island_periods: DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: islandDateString(islandMonday(new Date())) };
   }
 }
 
@@ -1038,7 +1062,7 @@ ipcMain.handle('get-week-labels', () => WEEK_LABELS);
 // 密码相关 IPC
 ipcMain.handle('get-config', () => {
   const config = loadConfig();
-  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'default', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true, show_island: config.show_island !== false, island_top_margin: clampInt(config.island_top_margin, 0, 100, 6), island_alert_width: clampInt(config.island_alert_width, 200, 800, 300), island_alert_hold_ms: clampInt(config.island_alert_hold_ms, 100, 5000, 600), island_hide_on_fullscreen: config.island_hide_on_fullscreen !== false, island_show_wakeup_anim: config.island_show_wakeup_anim !== false, show_sub_island: config.show_sub_island === true, sub_island_collapsed: config.sub_island_collapsed === true, sub_island_auto_collapse_sec: clampInt(config.sub_island_auto_collapse_sec, 0, 120, 5), anim_fade_panel: config.anim_fade_panel !== false, anim_fade_text: config.anim_fade_text !== false, anim_duration: clampInt(config.anim_duration, 100, 2000, 320), island_advance_minutes: clampInt(config.island_advance_minutes, 0, 60, 2), island_countdown_sec: clampInt(config.island_countdown_sec, 10, 600, 60), island_periods: normalizeIslandPeriods(config.island_periods) || DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: normalizeIslandTimetable(config.island_timetable) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: normalizeIslandTimetable(config.island_timetable_even) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: normalizeIslandWeekAnchor(config.island_week_anchor) || islandDateString(islandMonday(new Date())) };
+  return { passwordEnabled: config.passwordEnabled, passwordSet: !!config.password, soundEnabled: config.soundEnabled, soundVolume: config.soundVolume, language: config.language, fontFamily: config.fontFamily, bgmEnabled: config.bgmEnabled, bgmVolume: config.bgmVolume, passwordLocked: config.passwordLocked === true, tablesLocked: config.tablesLocked === true, autoSave: config.autoSave !== false, autoLock: config.autoLock === true, themeSkin: config.themeSkin || 'default', displayTheme: config.displayTheme || 'light', agreedToLicense: config.agreedToLicense === true, show_island: config.show_island !== false, island_auto_start: config.show_island !== false && config.island_auto_start === true, island_top_margin: clampInt(config.island_top_margin, 0, 100, 6), island_alert_width: clampInt(config.island_alert_width, 200, 800, 300), island_alert_hold_ms: clampInt(config.island_alert_hold_ms, 100, 5000, 600), island_hide_on_fullscreen: config.island_hide_on_fullscreen !== false, island_show_wakeup_anim: config.island_show_wakeup_anim !== false, show_sub_island: config.show_sub_island === true, sub_island_collapsed: config.sub_island_collapsed === true, sub_island_auto_collapse_sec: clampInt(config.sub_island_auto_collapse_sec, 0, 120, 5), anim_fade_panel: config.anim_fade_panel !== false, anim_fade_text: config.anim_fade_text !== false, anim_duration: clampInt(config.anim_duration, 100, 2000, 320), island_advance_minutes: clampInt(config.island_advance_minutes, 0, 60, 2), island_countdown_sec: clampInt(config.island_countdown_sec, 10, 600, 60), island_periods: normalizeIslandPeriods(config.island_periods) || DEFAULT_ISLAND_PERIODS.map(p => Object.assign({}, p)), island_timetable: normalizeIslandTimetable(config.island_timetable) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_timetable_even: normalizeIslandTimetable(config.island_timetable_even) || JSON.parse(JSON.stringify(DEFAULT_ISLAND_TIMETABLE)), island_week_anchor: normalizeIslandWeekAnchor(config.island_week_anchor) || islandDateString(islandMonday(new Date())) };
 });
 
 ipcMain.handle('verify-password', (event, input) => {
@@ -1117,6 +1141,12 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.8.3': { date: '2026-11-21', items: [
+        '课程表扩展为一天 9 节课，新增第9节默认时间，设置页与灵动岛均按 9 节显示',
+        '修复关闭主界面后再次打开软件会启动新进程的问题，重复启动只会唤起已有主界面',
+        '灵动岛新增「开机自启动」开关，开机后自动显示灵动岛且不弹出主界面',
+        '关闭灵动岛时会同步关闭开机自启动，避免残留启动项'
+      ] },
       '3.8.2': { date: '2026-11-21', items: [
         '灵动岛展开面板改为 Class Daily Land 样式：240px 宽、今日课程列表、当前课程 ▶ 标记，3 秒自动收起',
         '倒计时进度条改为 1px 内缩、圆角 19px，并补充头部光晕、亮点与流光扫过效果',
@@ -1620,7 +1650,14 @@ ipcMain.handle('update-settings-config', (event, params) => {
   if (params.autoLock !== undefined) config.autoLock = params.autoLock === true;
   if (params.themeSkin !== undefined) config.themeSkin = String(params.themeSkin);
   if (params.displayTheme !== undefined) config.displayTheme = String(params.displayTheme);
-  if (params.show_island !== undefined) config.show_island = params.show_island === true;
+  if (params.show_island !== undefined) {
+    config.show_island = params.show_island === true;
+    // 关闭灵动岛时同步关闭开机自启动
+    if (!config.show_island) config.island_auto_start = false;
+  }
+  if (params.island_auto_start !== undefined) {
+    config.island_auto_start = params.island_auto_start === true && config.show_island !== false;
+  }
   if (params.island_top_margin !== undefined) config.island_top_margin = clampInt(params.island_top_margin, 0, 100, 6);
   if (params.island_alert_width !== undefined) config.island_alert_width = clampInt(params.island_alert_width, 200, 800, 300);
   if (params.island_alert_hold_ms !== undefined) config.island_alert_hold_ms = clampInt(params.island_alert_hold_ms, 100, 5000, 600);
@@ -1651,6 +1688,9 @@ ipcMain.handle('update-settings-config', (event, params) => {
     if (weekAnchor) config.island_week_anchor = weekAnchor;
   }
   saveConfig(config);
+  if (params.show_island !== undefined || params.island_auto_start !== undefined) {
+    applyIslandAutoStart(config.show_island !== false && config.island_auto_start === true);
+  }
   notifyIslandConfigChanged();
   return { success: true };
 });
@@ -3299,6 +3339,20 @@ let fullscreenWatcherFailures = 0;
 const ISLAND_WIN_WIDTH = 900;
 const ISLAND_WIN_HEIGHT = 560;
 
+// 开机自启动：写入当前用户登录项，启动时只显示灵动岛与托盘
+function applyIslandAutoStart(enabled) {
+  if (process.platform !== 'win32' || isUninstallMode) return;
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: enabled === true,
+      path: process.execPath,
+      args: ['--autostart']
+    });
+  } catch (e) {
+    console.error('设置开机自启动失败:', e.message);
+  }
+}
+
 function getIslandConfig() {
   const c = loadConfig();
   return {
@@ -3419,7 +3473,12 @@ function refreshIslandVisibility(force) {
 function setIslandSetting(key, value) {
   const config = loadConfig();
   switch (key) {
-    case 'show_island': config.show_island = value === true; break;
+    case 'show_island':
+      config.show_island = value === true;
+      // 关闭灵动岛时同步关闭开机自启动
+      if (!config.show_island) config.island_auto_start = false;
+      break;
+    case 'island_auto_start': config.island_auto_start = value === true && config.show_island !== false; break;
     case 'island_top_margin': config.island_top_margin = clampInt(value, 0, 100, 6); break;
     case 'island_alert_width': config.island_alert_width = clampInt(value, 200, 800, 300); break;
     case 'island_alert_hold_ms': config.island_alert_hold_ms = clampInt(value, 100, 5000, 600); break;
@@ -3434,6 +3493,9 @@ function setIslandSetting(key, value) {
     default: return { success: false, error: 'unknown key' };
   }
   saveConfig(config);
+  if (key === 'show_island' || key === 'island_auto_start') {
+    applyIslandAutoStart(config.show_island !== false && config.island_auto_start === true);
+  }
   notifyIslandConfigChanged();
   return { success: true, config: getIslandConfig() };
 }
@@ -3733,7 +3795,6 @@ ipcMain.handle('island-set-locked', (event, locked) => {
 
 
 // ===== 卸载模式：需输入管理员密码 =====
-const isUninstallMode = process.argv.includes('--uninstall');
 if (isUninstallMode) {
   app.whenReady().then(() => {
     const { dialog } = require('electron');
@@ -3809,8 +3870,12 @@ if (isUninstallMode) {
   });
 } else {
   app.whenReady().then(() => {
+    if (!gotSingleInstanceLock) return;
     migrateOldData();
-    createWindow();
+    const bootConfig = loadConfig();
+    applyIslandAutoStart(bootConfig.show_island !== false && bootConfig.island_auto_start === true);
+    // 开机自启动只显示灵动岛和托盘，不弹出主界面
+    if (!isAutostartLaunch) createWindow();
     createIslandWindow();
     createIslandTray();
     startFullscreenWatcher();

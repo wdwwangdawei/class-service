@@ -5372,7 +5372,13 @@ window.app = {
         var el = document.getElementById(id);
         if (el) el.checked = value === true;
       };
-      setChk('island-set-show', cfg.show_island !== false);
+      var showIsland = cfg.show_island !== false;
+      setChk('island-set-show', showIsland);
+      var autoStartEl = document.getElementById('island-set-auto-start');
+      if (autoStartEl) {
+        autoStartEl.checked = showIsland && cfg.island_auto_start === true;
+        autoStartEl.disabled = !showIsland;
+      }
       setVal('island-set-top', cfg.island_top_margin != null ? cfg.island_top_margin : 6);
       setVal('island-set-alert-width', cfg.island_alert_width != null ? cfg.island_alert_width : 300);
       setVal('island-set-alert-hold', cfg.island_alert_hold_ms != null ? cfg.island_alert_hold_ms : 600);
@@ -5387,7 +5393,7 @@ window.app = {
       setVal('island-set-advance', cfg.island_advance_minutes != null ? cfg.island_advance_minutes : 2);
       setVal('island-set-countdown', cfg.island_countdown_sec != null ? cfg.island_countdown_sec : 60);
       var periods = cfg.island_periods || [];
-      for (var i = 0; i < 8; i++) {
+      for (var i = 0; i < 9; i++) {
         var period = periods[i] || {};
         var startEl = document.querySelector('[data-period-start="' + i + '"]');
         var endEl = document.querySelector('[data-period-end="' + i + '"]');
@@ -5446,7 +5452,7 @@ window.app = {
 
   async onIslandScheduleChange() {
     var periods = [];
-    for (var i = 0; i < 8; i++) {
+    for (var i = 0; i < 9; i++) {
       var startEl = document.querySelector('[data-period-start="' + i + '"]');
       var endEl = document.querySelector('[data-period-end="' + i + '"]');
       if (!startEl || !endEl) continue;
