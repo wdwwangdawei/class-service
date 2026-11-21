@@ -1141,6 +1141,9 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.8.5': { date: '2026-11-21', items: [
+        '灵动岛关闭后，点击主界面右上角 × 直接退出程序，不再仅隐藏到托盘'
+      ] },
       '3.8.4': { date: '2026-11-21', items: [
         '修复开机自启动模式下，从托盘或灵动岛打开设置时主界面未跳转到灵动岛设置页的问题',
         '卸载程序时自动移除开机自启动项，避免残留失效启动项',
@@ -3335,13 +3338,19 @@ function createWindow() {
     pendingMainMessages = [];
   });
 
-  // 关闭主窗口时隐藏到托盘，灵动岛继续在桌面置顶显示
+  // 关闭主窗口：灵动岛开启时隐藏到托盘，灵动岛关闭时直接退出进程
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    if (app.isQuitting) return;
+    const cfg = loadConfig();
+    if (cfg.show_island === false) {
       event.preventDefault();
-      mainWindow.hide();
-      refreshIslandVisibility(true);
+      app.isQuitting = true;
+      app.quit();
+      return;
     }
+    event.preventDefault();
+    mainWindow.hide();
+    refreshIslandVisibility(true);
   });
 }
 
