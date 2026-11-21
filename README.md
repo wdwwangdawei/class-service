@@ -4,10 +4,15 @@
 
 ## 下载
 
-- 最新版本：v3.8.5
+- 最新版本：v3.8.6
 - 安装包：[GitHub Releases](https://github.com/wdwwangdawei/class-service/releases/latest)
 - 安装包版本：v3.8.4（内置 v3.8.4 应用，安装后自动检查并更新）
 - 支持系统：Windows 10 / 11
+
+## v3.8.6 更新内容
+
+- 首页随机好句从 14 条扩充到 30 条
+- 首页「今天辛苦啦，老师」与好句字号调大，阅读更舒适
 
 ## v3.8.5 更新内容
 

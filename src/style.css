@@ -1,5 +1,5 @@
 /* =========================================================================
-   班级服务管理系统 v3.8.5 — Fluent (Win11 / Office) 浅色主题
+   班级服务管理系统 v3.8.6 — Fluent (Win11 / Office) 浅色主题
    说明：本文件只负责表现层，完全兼容 app.js 使用的既有类名与内联结构。
    ========================================================================= */
 
@@ -264,7 +264,7 @@ h1, h2, h3, h4 { font-weight: 600; }
   gap: 16px; padding: 2px 2px 2px;
 }
 .home-title { font-size: 22px; font-weight: 600; color: var(--text); letter-spacing: .2px; line-height: 1.3; }
-.home-sub { margin-top: 4px; font-size: 12.5px; color: var(--text-3); }
+.home-sub { margin-top: 4px; font-size: 14.5px; line-height: 1.7; color: var(--text-3); }
 .home-quote { margin-left: 10px; padding-left: 10px; border-left: 1px solid var(--border-strong); color: var(--text-2); }
 .home-head-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .home-head-actions .btn { height: 34px; }
