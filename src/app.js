@@ -17,6 +17,8 @@ function shuffle(arr) {
 window.app = {
   currentSection: 'main-menu',
   pageHistory: [],
+  _navReady: false,
+  _pendingIslandNav: null,
   _navBack: false,
   editingTable: null,
   isEditing: false,
@@ -511,15 +513,33 @@ window.app = {
 
   initIslandListeners() {
     if (window.electronAPI.onOpenIslandSettings) {
-      window.electronAPI.onOpenIslandSettings(() => this.showIslandPage());
+      window.electronAPI.onOpenIslandSettings(() => this.navigateFromIsland('settings'));
     }
     if (window.electronAPI.onIslandNavigate) {
-      window.electronAPI.onIslandNavigate((page) => {
-        if (page === 'homework') this.showHomeworkPage();
-        else if (page === 'duty') this.showDutyPage();
-        else if (page === 'island') this.showIslandPage();
-      });
+      window.electronAPI.onIslandNavigate((page) => this.navigateFromIsland(page));
     }
+  },
+
+  // 灵动岛发起的页面跳转：主界面启动完成后才能生效，避免被启动流程切回首页
+  navigateFromIsland(target) {
+    if (!target) return;
+    if (!this._navReady) {
+      this._pendingIslandNav = target;
+      return;
+    }
+    this.applyIslandNav(target);
+  },
+
+  applyIslandNav(target) {
+    if (target === 'settings' || target === 'island') this.showIslandPage();
+    else if (target === 'homework') this.showHomeworkPage();
+    else if (target === 'duty') this.showDutyPage();
+  },
+
+  applyPendingIslandNav() {
+    const target = this._pendingIslandNav;
+    this._pendingIslandNav = null;
+    if (target) this.applyIslandNav(target);
   },
 
   showRemoteUpdateDialog(info) {
@@ -617,7 +637,10 @@ window.app = {
       this.isLocked = false;
       document.body.classList.remove('app-locked');
       this.initIsland();
-      this.showMainMenu();
+      this.showMainMenu().then(() => {
+        this._navReady = true;
+        this.applyPendingIslandNav();
+      });
     }
   },
 
@@ -649,7 +672,10 @@ window.app = {
         this.isLocked = false;
         document.body.classList.remove('app-locked');
         this.initIsland();
-        this.showMainMenu();
+        this.showMainMenu().then(() => {
+          this._navReady = true;
+          this.applyPendingIslandNav();
+        });
       } else {
         error.textContent = '密码错误，请重试';
         input.value = '';

@@ -1141,6 +1141,11 @@ ipcMain.handle('confirm-box', (event, options) => {
 
 // 版本更新日志（按版本号记录变更内容）
 const CHANGELOG = {
+      '3.8.4': { date: '2026-11-21', items: [
+        '修复开机自启动模式下，从托盘或灵动岛打开设置时主界面未跳转到灵动岛设置页的问题',
+        '卸载程序时自动移除开机自启动项，避免残留失效启动项',
+        '开机自启动时若灵动岛已关闭，则正常显示主界面，避免只留下托盘图标'
+      ] },
       '3.8.3': { date: '2026-11-21', items: [
         '课程表扩展为一天 9 节课，新增第9节默认时间，设置页与灵动岛均按 9 节显示',
         '修复关闭主界面后再次打开软件会启动新进程的问题，重复启动只会唤起已有主界面',
@@ -3285,9 +3290,13 @@ ipcMain.handle('homework-delete', (event, id) => {
 
 
 let mainWindow;
+let mainWindowReady = false;
+let pendingMainMessages = [];
 app.isQuitting = false;
 
 function createWindow() {
+  mainWindowReady = false;
+  pendingMainMessages = [];
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 750,
@@ -3310,8 +3319,20 @@ function createWindow() {
     mainWindow.show();
   });
 
+  // 自启动模式首次打开主界面时，等页面加载完成再投递跳转消息，避免消息丢失
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindowReady = true;
+    const queue = pendingMainMessages;
+    pendingMainMessages = [];
+    queue.forEach(([channel, payload]) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
+    });
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
+    mainWindowReady = false;
+    pendingMainMessages = [];
   });
 
   // 关闭主窗口时隐藏到托盘，灵动岛继续在桌面置顶显示
@@ -3538,11 +3559,18 @@ function showMainWindow() {
   mainWindow.focus();
 }
 
+function sendMainWindowMessage(channel, payload) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (!mainWindowReady) {
+    pendingMainMessages.push([channel, payload]);
+    return;
+  }
+  mainWindow.webContents.send(channel, payload);
+}
+
 function openIslandSettingsPage() {
   showMainWindow();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('open-island-settings');
-  }
+  sendMainWindowMessage('open-island-settings');
 }
 
 function rebuildTrayMenu() {
@@ -3737,9 +3765,7 @@ ipcMain.handle('island-open-main', () => {
 
 ipcMain.handle('island-open-page', (event, page) => {
   showMainWindow();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('island-navigate', String(page || ''));
-  }
+  sendMainWindowMessage('island-navigate', String(page || ''));
   return { success: true };
 });
 
@@ -3842,6 +3868,10 @@ if (isUninstallMode) {
     ipcMain.once('uninstall-confirm', () => {
       try {
         const appPath = path.dirname(process.execPath);
+        // 卸载时移除开机自启动项，避免残留失效的启动项
+        try {
+          app.setLoginItemSettings({ openAtLogin: false, path: process.execPath, args: ['--autostart'] });
+        } catch (e) {}
         // 删除桌面快捷方式
         const desktop = require('os').homedir() + '\\Desktop';
         ['班级服务管理系统.lnk', '卸载班级服务管理系统.lnk'].forEach(f => {
@@ -3874,8 +3904,8 @@ if (isUninstallMode) {
     migrateOldData();
     const bootConfig = loadConfig();
     applyIslandAutoStart(bootConfig.show_island !== false && bootConfig.island_auto_start === true);
-    // 开机自启动只显示灵动岛和托盘，不弹出主界面
-    if (!isAutostartLaunch) createWindow();
+    // 显示灵动岛和托盘；若灵动岛已被关闭，则正常显示主界面，避免只有托盘图标
+    if (!isAutostartLaunch || bootConfig.show_island === false) createWindow();
     createIslandWindow();
     createIslandTray();
     startFullscreenWatcher();
