@@ -42,9 +42,10 @@
     cursor: pointer;
     opacity: 1;
     transform: translateX(-50%) translateY(0);
-    transition: width var(--dur) var(--ease), transform var(--dur) var(--ease), opacity var(--dur) var(--ease);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    will-change: width, transform, opacity;
+    transition: width var(--geo-dur, 235ms) cubic-bezier(0.33, 1, 0.68, 1),
+                transform var(--geo-dur, 235ms) cubic-bezier(0.33, 1, 0.68, 1),
+                opacity 120ms ease;
+    will-change: width, transform;
   }
   body[data-state="mini"] #island { width: 48px; padding-left: 0; }
   body[data-state="compact"] #island { width: 240px; }
@@ -52,8 +53,7 @@
   body[data-state="alert"] #island { width: var(--alert-width); padding-left: 0; }
   body[data-state="hidden"] #island {
     width: 48px;
-    opacity: 0;
-    transform: translateX(-50%) translateY(calc(-40px - var(--top) - 12px));
+    transform: translateX(-50%) translateY(calc(-40px - var(--top) - 18px));
   }
   #ringWrap {
     flex: 0 0 28px;
@@ -81,73 +81,108 @@
   body[data-state="mini"] #miniDot { display: block; }
   #countFill {
     position: absolute;
-    left: 3px;
-    top: 3px;
-    bottom: 3px;
-    width: calc((100% - 6px) * var(--fill, 0));
-    border-radius: 17px;
+    left: 1px;
+    top: 1px;
+    bottom: 1px;
+    width: max(0px, calc(100% * var(--fill, 0) - 1px));
+    border-radius: 19px;
     background: #0a84ff;
-    box-shadow: 4px 0 14px rgba(120, 190, 255, 0.9), inset -1px 0 0 rgba(255, 255, 255, 0.85);
+    overflow: hidden;
     opacity: 0;
     pointer-events: none;
     transition: width 260ms linear, opacity 160ms ease;
   }
   body[data-state="countdown"] #countFill { opacity: 1; }
+  #countSheen {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: max(40px, 50%);
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.275), rgba(255, 255, 255, 0));
+    transform: translateX(-100%);
+    animation: count-sheen 1400ms linear infinite;
+  }
+  @keyframes count-sheen {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(300%); }
+  }
+  #countGlow {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 20px;
+    background: linear-gradient(90deg, rgba(120, 200, 255, 0), rgba(150, 210, 255, 0.78));
+  }
+  #countDot {
+    position: absolute;
+    top: 50%;
+    right: 7.6px;
+    width: 22.8px;
+    height: 22.8px;
+    margin-top: -11.4px;
+    border-radius: 50%;
+    background: rgba(235, 245, 255, 0.9);
+  }
   #ringWrap, #textWrap { position: relative; z-index: 1; }
   #textWrap {
     flex: 1 1 auto;
     min-width: 0;
     height: 40px;
-    line-height: 40px;
-    padding: 0 10px 0 8px;
     overflow: hidden;
     white-space: nowrap;
   }
-  #islandText {
-    display: inline-block;
+  .itxt {
+    position: absolute;
+    left: 8px;
+    right: 10px;
+    top: 0;
+    height: 40px;
+    line-height: 40px;
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.2px;
     white-space: nowrap;
     opacity: 1;
-    transition: opacity 140ms ease;
   }
-  body.fade-text #islandText.swapping { opacity: 0; }
-  #islandText.marquee { animation: marquee-scroll 6s ease-in-out infinite alternate; }
+  #islandTextNew { opacity: 0; }
+  .itxt.marquee { animation: marquee-scroll 6s ease-in-out infinite alternate; }
   @keyframes marquee-scroll {
     from { transform: translateX(0); }
     to { transform: translateX(var(--shift, 0)); }
   }
   body[data-state="mini"] #textWrap { opacity: 0; }
-  body[data-state="mini"] #islandText { opacity: 0; }
+  body[data-state="mini"] .itxt { opacity: 0; }
   body[data-state="alert"] #ringWrap { display: none; }
   body[data-state="alert"] #textWrap {
-    padding: 0 18px;
     text-align: center;
   }
-  body[data-state="alert"] #islandText {
+  body[data-state="alert"] .itxt {
+    left: 18px;
+    right: 18px;
     font-size: 16px;
     font-weight: 700;
     color: #fff;
-    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
-    vertical-align: top;
+    text-align: center;
   }
-  body[data-state="alert"][data-alert-type="success"] #islandText { color: #30d158; }
-  body[data-state="alert"][data-alert-type="error"] #islandText { color: #ff6961; }
+  body[data-state="alert"][data-alert-type="success"] .itxt { color: #30d158; }
 
   #sub {
     position: absolute;
     top: var(--top);
     left: 462px;
     height: 40px;
+    min-width: 158px;
     border-radius: 20px;
     background: #1c1c1e;
-    color: #fff;
+    color: #e6e6e6;
     display: flex;
     align-items: center;
-    padding: 0 16px;
+    justify-content: flex-start;
+    padding: 0 10px;
     white-space: nowrap;
     cursor: pointer;
     opacity: 0;
@@ -155,129 +190,72 @@
     transform: translateY(-16px) scale(0.92);
     transition: left var(--dur) var(--ease), width var(--dur) var(--ease), padding var(--dur) var(--ease),
                 opacity var(--dur-fast) ease, transform var(--dur) var(--ease);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.24), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     overflow: hidden;
   }
   body.sub-on #sub { opacity: 1; pointer-events: auto; transform: translateY(0) scale(1); }
-  #sub.collapsed { width: 40px; padding: 0; justify-content: center; }
+  #sub.collapsed { width: 40px; min-width: 40px; padding: 0; justify-content: center; }
   #subText {
     font-size: 13px;
-    font-weight: 600;
     white-space: nowrap;
     transition: opacity var(--dur-fast) ease;
   }
   #sub.collapsed #subText { opacity: 0; width: 0; }
-  #subDot {
+  #subMark {
     display: none;
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: #0a84ff;
+    font-size: 18px;
+    font-family: "Segoe UI Emoji", "Microsoft YaHei UI", sans-serif;
+    color: #fff;
+    line-height: 40px;
   }
-  #sub.collapsed #subDot { display: block; }
+  #sub.collapsed #subMark { display: block; }
 
   #panel {
     position: absolute;
     left: 50%;
     top: calc(var(--top) + 44px);
-    width: 300px;
+    width: 240px;
+    height: 0;
     background: #1c1c1e;
     border-radius: 8px;
-    color: #f2f2f7;
+    color: #e6e6e6;
     overflow: hidden;
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
-    transform: translateX(-50%) translateY(-6px) scale(0.985);
+    transform: translateX(-50%) translateY(6px);
     transform-origin: top center;
-    transition: opacity var(--dur-fast) ease, transform var(--dur-fast) var(--ease), visibility var(--dur-fast) ease;
-    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.34), inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+    transition: height var(--panel-dur, 320ms) cubic-bezier(0.33, 1, 0.68, 1),
+                opacity 160ms ease,
+                transform var(--panel-dur, 320ms) cubic-bezier(0.33, 1, 0.68, 1),
+                visibility 0s linear var(--panel-dur, 320ms);
   }
   #panel.open {
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateX(-50%) translateY(0);
+    transition: height var(--panel-dur, 320ms) cubic-bezier(0.33, 1, 0.68, 1),
+                opacity 160ms ease,
+                transform var(--panel-dur, 320ms) cubic-bezier(0.33, 1, 0.68, 1),
+                visibility 0s;
   }
   body:not(.fade-panel) #panel { transition: none; }
-  .p-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 38px;
-    padding: 0 14px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-  }
-  #panelDate { font-size: 13px; font-weight: 700; letter-spacing: 0.2px; }
-  #panelUpdated { font-size: 11px; color: #8e8e93; }
-  .p-rows { padding: 4px 0; }
-  .p-course {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 14px;
-    font-size: 12.5px;
-  }
-  .p-tag {
-    flex: 0 0 auto;
-    height: 18px;
-    line-height: 18px;
-    padding: 0 6px;
-    border-radius: 4px;
-    font-size: 10px;
-    font-weight: 700;
-  }
-  .tag-period { color: #64b5ff; background: rgba(10, 132, 255, 0.16); }
-  .p-course .p-name {
-    flex: 1 1 auto;
-    min-width: 0;
-    color: #f2f2f7;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  #panelBody {
+    padding: 12px;
+    font-size: 13px;
+    line-height: 22px;
     white-space: nowrap;
   }
-  .p-course .p-time {
-    flex: 0 0 auto;
-    color: #8e8e93;
-    font-size: 11.5px;
-    font-variant-numeric: tabular-nums;
-  }
-  .p-course.current { background: rgba(48, 209, 88, 0.12); }
-  .p-course.current .p-name { color: #30d158; font-weight: 700; }
-  .p-course.next .p-name { color: #64b5ff; }
-  .p-empty {
-    padding: 16px 14px;
-    text-align: center;
-    color: #8e8e93;
-    font-size: 12.5px;
-  }
-  .p-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
-    padding: 8px 10px 10px;
-    border-top: 1px solid rgba(255, 255, 255, 0.07);
-  }
-  .p-actions button {
-    height: 30px;
-    border: none;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.09);
-    color: #f2f2f7;
-    font-family: inherit;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 120ms ease;
-  }
-  .p-actions button:hover { background: rgba(255, 255, 255, 0.16); }
-  .p-actions button[data-action="open"] { background: #0a84ff; }
-  .p-actions button[data-action="open"]:hover { background: #3395ff; }
+  .p-line { white-space: pre; overflow: hidden; text-overflow: ellipsis; }
 </style>
 </head>
 <body data-state="hidden" data-alert-type="info">
   <div id="island">
-    <div id="countFill"></div>
+    <div id="countFill">
+      <div id="countSheen"></div>
+      <div id="countGlow"></div>
+      <div id="countDot"></div>
+    </div>
     <div id="ringWrap">
       <svg id="ringSvg" width="28" height="28" viewBox="0 0 28 28">
         <circle cx="14" cy="14" r="12" fill="none" stroke="#3a3a3c" stroke-width="2"></circle>
@@ -287,22 +265,19 @@
       </svg>
       <div id="miniDot"></div>
     </div>
-    <div id="textWrap"><span id="islandText">今日无课</span></div>
+    <div id="textWrap">
+      <span id="islandText" class="itxt">今日无课</span>
+      <span id="islandTextNew" class="itxt"></span>
+    </div>
   </div>
 
   <div id="sub" class="collapsed">
     <span id="subText"></span>
-    <span id="subDot"></span>
+    <span id="subMark"></span>
   </div>
 
   <div id="panel">
-    <div class="p-head"><span id="panelDate">—</span><span id="panelUpdated">实时</span></div>
-    <div class="p-rows" id="panelCourses"></div>
-    <div class="p-actions">
-      <button data-action="settings">灵动岛设置</button>
-      <button data-action="refresh">刷新</button>
-      <button data-action="open">打开主界面</button>
-    </div>
+    <div id="panelBody"></div>
   </div>
 
   <script>
@@ -310,8 +285,13 @@
     const island = document.getElementById('island');
     const sub = document.getElementById('sub');
     const subText = document.getElementById('subText');
+    const subMark = document.getElementById('subMark');
     const panel = document.getElementById('panel');
-    const textEl = document.getElementById('islandText');
+    const panelBody = document.getElementById('panelBody');
+    const textA = document.getElementById('islandText');
+    const textB = document.getElementById('islandTextNew');
+    let textEl = textA;
+    let idleTextEl = textB;
     const ringProgress = document.getElementById('ringProgress');
     const countFill = document.getElementById('countFill');
     const miniDot = document.getElementById('miniDot');
@@ -350,7 +330,9 @@
       countdownKey: '',
       countdownWindow: 60,
       lastInteractive: null,
-      lastMouse: { x: -1, y: -1 }
+      lastMouse: { x: -1, y: -1 },
+      rolling: false,
+      fillTuned: false
     };
 
     function clamp(n, min, max, fallback) {
@@ -444,6 +426,7 @@
     function refreshSchedule(forceText) {
       const schedule = currentSchedule();
       const prevKind = state.lastStatusKind;
+      const prevCourse = state.status ? state.status.course : '';
       state.status = schedule ? computeStatus(schedule, new Date()) : null;
       state.lastStatusKind = state.status ? state.status.status : '';
       const countdownSec = (schedule && schedule.countdownSec) || 60;
@@ -454,9 +437,12 @@
         if (state.countdownKey !== key) {
           state.countdownKey = key;
           state.countdownWindow = Math.max(1, countdownSec);
+          state.fillTuned = false;
         }
         if (state.phase === 'compact' || state.phase === 'mini') {
-          applyPhase('countdown');
+          enterCountdown();
+        } else if (state.phase === 'countdown' && !state.fillTuned) {
+          tuneCountFill();
         }
       } else {
         state.countdownKey = '';
@@ -467,8 +453,11 @@
         const text = statusText(schedule, state.status);
         if (state.phase === 'compact' || state.phase === 'mini' || state.phase === 'countdown') {
           if (forceText || text !== state.lastText) {
+            const kind = state.status ? state.status.status : '';
+            const allowRoll = !forceText && prevKind === kind && prevCourse === (state.status && state.status.course)
+              && (kind === 'upcoming' || kind === 'ongoing');
             state.lastText = text;
-            setText(text);
+            setText(text, false, allowRoll);
           }
         }
       }
@@ -484,6 +473,32 @@
       renderSub();
     }
 
+    function tuneCountFill() {
+      state.fillTuned = true;
+      const ratio = state.status && state.status.untilSec != null
+        ? Math.max(0, Math.min(1, state.status.untilSec / Math.max(1, state.countdownWindow)))
+        : 0;
+      island.style.setProperty('--fill', '0');
+      countFill.style.transition = 'none';
+      void countFill.offsetWidth;
+      countFill.style.transition = 'width 180ms cubic-bezier(0.33, 1, 0.68, 1), opacity 160ms ease';
+      requestAnimationFrame(() => {
+        if (state.phase === 'countdown') island.style.setProperty('--fill', String(ratio));
+      });
+      setTimeout(() => {
+        if (state.phase === 'countdown') {
+          countFill.style.transition = 'width 260ms linear, opacity 160ms ease';
+        }
+      }, 200);
+    }
+
+    function enterCountdown() {
+      applyPhase('countdown');
+      tuneCountFill();
+      updateSubLayout();
+      renderSub();
+    }
+
     function applyConfig(cfg) {
       if (!cfg) return;
       const merged = Object.assign({}, state.config, cfg);
@@ -494,11 +509,11 @@
       root.setProperty('--alert-width', clamp(merged.island_alert_width, 200, 800, 300) + 'px');
       const dur = clamp(merged.anim_duration, 100, 2000, 320);
       root.setProperty('--dur', dur + 'ms');
+      root.setProperty('--panel-dur', clamp(dur, 100, 500, 320) + 'ms');
       root.setProperty('--dur-fast', Math.max(90, Math.round(dur / 2)) + 'ms');
       document.body.classList.toggle('fade-panel', merged.anim_fade_panel !== false);
       document.body.classList.toggle('fade-text', merged.anim_fade_text !== false);
       state.subCollapsed = merged.sub_island_collapsed === true;
-      document.body.classList.toggle('sub-on', merged.show_sub_island === true && !!subText.textContent);
       updateSubLayout();
       renderSub();
       updateRing();
@@ -521,39 +536,113 @@
       sub.style.left = left + 'px';
     }
 
-    function setText(text, isAlert) {
-      const value = String(text == null ? '' : text);
-      const apply = () => {
-        textEl.textContent = value;
-        textEl.classList.remove('marquee');
-        textEl.style.removeProperty('--shift');
-        if (!isAlert) {
-          requestAnimationFrame(() => {
-            const wrap = textEl.parentElement;
-            const overflow = textEl.scrollWidth - wrap.clientWidth;
-            if (overflow > 2) {
-              textEl.style.setProperty('--shift', (-overflow) + 'px');
-              textEl.style.animationDuration = Math.max(4, Math.round(overflow / 22)) + 's';
-              textEl.classList.add('marquee');
-            }
-          });
+    function applyMarquee(el) {
+      el.classList.remove('marquee');
+      el.style.removeProperty('--shift');
+      requestAnimationFrame(() => {
+        const wrap = el.parentElement;
+        const overflow = el.scrollWidth - wrap.clientWidth;
+        if (overflow > 2) {
+          el.style.setProperty('--shift', (-overflow) + 'px');
+          el.style.animationDuration = Math.max(4, Math.round(overflow / 22)) + 's';
+          el.classList.add('marquee');
         }
-      };
-      if (state.config.anim_fade_text !== false && state.phase !== 'alert') {
-        textEl.classList.add('swapping');
-        setTimeout(() => {
-          apply();
-          textEl.classList.remove('swapping');
-        }, 140);
+      });
+    }
+
+    function setTextInstant(value, skipMarquee) {
+      state.rolling = false;
+      textA.getAnimations().forEach((a) => a.cancel());
+      textB.getAnimations().forEach((a) => a.cancel());
+      textA.style.removeProperty('transform');
+      textB.style.removeProperty('transform');
+      const el = textEl;
+      el.textContent = value;
+      el.style.opacity = '1';
+      idleTextEl.style.opacity = '0';
+      idleTextEl.classList.remove('marquee');
+      idleTextEl.style.removeProperty('--shift');
+      if (skipMarquee) {
+        el.classList.remove('marquee');
+        el.style.removeProperty('--shift');
       } else {
-        apply();
+        applyMarquee(el);
       }
     }
 
-    function applyPhase(phase) {
+    function rollText(value) {
+      const from = textEl;
+      const to = idleTextEl;
+      from.getAnimations().forEach((a) => a.cancel());
+      to.getAnimations().forEach((a) => a.cancel());
+      from.style.transform = '';
+      to.style.transform = '';
+      to.textContent = value;
+      to.classList.remove('marquee');
+      to.style.removeProperty('--shift');
+      const dur = Math.max(120, Math.min(400, Math.round((state.config.anim_duration || 320) * 0.7)));
+      const ease = 'cubic-bezier(0.33, 1, 0.68, 1)';
+      from.style.opacity = '1';
+      to.style.opacity = '1';
+      const a1 = from.animate([
+        { transform: 'translateY(0)', opacity: 1 },
+        { transform: 'translateY(-40px)', opacity: 0 }
+      ], { duration: dur, easing: ease, fill: 'forwards' });
+      const a2 = to.animate([
+        { transform: 'translateY(40px)', opacity: 0 },
+        { transform: 'translateY(0)', opacity: 1 }
+      ], { duration: dur, easing: ease, fill: 'forwards' });
+      state.rolling = true;
+      a2.onfinish = () => {
+        state.rolling = false;
+        a1.cancel();
+        a2.cancel();
+        from.style.opacity = '0';
+        from.classList.remove('marquee');
+        from.style.removeProperty('--shift');
+        from.style.transform = '';
+        to.style.opacity = '1';
+        to.style.transform = '';
+        textEl = to;
+        idleTextEl = from;
+        applyMarquee(to);
+      };
+    }
+
+    function setText(text, isAlert, allowRoll) {
+      const value = String(text == null ? '' : text);
+      if (!isAlert && allowRoll && state.phase === 'compact'
+          && state.config.anim_fade_text !== false) {
+        rollText(value);
+      } else {
+        setTextInstant(value, isAlert === true);
+      }
+    }
+
+    function applyPhase(phase, instant) {
+      const from = state.phase;
+      const dur = instant ? 0 : geoDur(from, phase);
+      document.documentElement.style.setProperty('--geo-dur', dur + 'ms');
       state.phase = phase;
       document.body.dataset.state = phase;
       setMainWidthVar();
+      renderSub();
+    }
+
+    function geoDur(from, to) {
+      const widths = {
+        hidden: 48,
+        mini: 48,
+        compact: 240,
+        countdown: 600,
+        alert: clamp(state.config.island_alert_width, 200, 800, 300)
+      };
+      const wf = widths[from] != null ? widths[from] : 240;
+      const wt = widths[to] != null ? widths[to] : 240;
+      const yf = from === 'hidden' ? -(40 + 18) : 0;
+      const yt = to === 'hidden' ? -(40 + 18) : 0;
+      const dist = Math.max(Math.abs(wt - wf), Math.abs(yt - yf));
+      return Math.max(120, Math.min(320, Math.round(120 + dist * 0.6)));
     }
 
     function setPhase(phase) {
@@ -598,15 +687,14 @@
       state.alertTimer = null;
       closePanel();
       if (state.config.island_show_wakeup_anim !== false) {
-        setPhase('hidden');
+        applyPhase('hidden', true);
+        void island.offsetWidth;
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            if (!state.visible) return;
-            setPhase('mini');
-            setTimeout(() => {
-              if (state.visible && state.phase === 'mini') setPhase('compact');
-            }, 60);
-          });
+          if (!state.visible) return;
+          setPhase('mini');
+          setTimeout(() => {
+            if (state.visible && state.phase === 'mini') setPhase('compact');
+          }, geoDur('hidden', 'mini') + 60);
         });
       } else {
         setPhase('compact');
@@ -618,10 +706,11 @@
       state.alertTimer = null;
       closePanel();
       if (state.phase === 'hidden') return;
+      const shrink = geoDur(state.phase, 'mini');
       setPhase('mini');
       setTimeout(() => {
         if (!state.visible) setPhase('hidden');
-      }, 600);
+      }, shrink + 600);
     }
 
     function showAlert(payload) {
@@ -647,8 +736,8 @@
     function openPanel() {
       if (state.panelOpen) return;
       state.panelOpen = true;
-      panel.classList.add('open');
       renderPanel();
+      panel.classList.add('open');
       schedulePanelClose();
     }
 
@@ -656,6 +745,7 @@
       if (!state.panelOpen) return;
       state.panelOpen = false;
       panel.classList.remove('open');
+      panel.style.height = '0px';
       if (state.panelTimer) {
         clearTimeout(state.panelTimer);
         state.panelTimer = null;
@@ -676,34 +766,29 @@
     }
 
     function renderPanel() {
-      const data = state.data;
       const schedule = currentSchedule();
-      if (!data && !schedule) return;
-      document.getElementById('panelDate').textContent = (data && data.dateText) || '—';
-      const wrap = document.getElementById('panelCourses');
       if (!schedule) {
-        wrap.innerHTML = '<div class="p-empty">今日无课</div>';
+        panelBody.innerHTML = '<div class="p-line">今天没有课</div>';
+        panel.style.height = (34 + 22) + 'px';
         return;
       }
       const now = new Date();
       const status = computeStatus(schedule, now);
       state.status = status;
       const courses = dayCourses(schedule, now);
+      let lines = [];
       if (!courses.length) {
-        wrap.innerHTML = '<div class="p-empty">' + (status.status === 'done' ? '今日课程已结束' : '今日无课') + '</div>';
+        lines = ['今天没有课'];
       } else {
-        wrap.innerHTML = courses.map(function (item) {
-          let cls = 'p-course';
-          if (status.status === 'ongoing' && item.index === status.index) cls += ' current';
-          else if (status.status === 'upcoming' && item.index === status.index) cls += ' next';
-          return '<div class="' + cls + '">' +
-            '<span class="p-tag tag-period">' + escapeHtml(item.period) + '</span>' +
-            '<span class="p-name">' + escapeHtml(item.course) + '</span>' +
-            '<span class="p-time">' + escapeHtml(item.start) + '-' + escapeHtml(item.end) + '</span>' +
-            '</div>';
-        }).join('');
+        lines = courses.map(function (item) {
+          const mark = status.index != null && item.index === status.index ? '▶ ' : '';
+          return mark + item.course + '  ' + item.start;
+        });
       }
-      document.getElementById('panelUpdated').textContent = (schedule.weekLabel ? schedule.weekLabel + ' · ' : '') + '实时';
+      panelBody.innerHTML = lines.map(function (line) {
+        return '<div class="p-line">' + escapeHtml(line) + '</div>';
+      }).join('');
+      panel.style.height = (34 + lines.length * 22) + 'px';
     }
 
     function renderSub() {
@@ -714,9 +799,11 @@
       if (text !== state.lastSubText) {
         state.lastSubText = text;
         subText.textContent = text || '—';
+        subMark.textContent = (text || '—').charAt(0);
       }
       sub.classList.toggle('collapsed', state.subCollapsed !== false);
-      document.body.classList.toggle('sub-on', cfg.show_sub_island === true && !!text);
+      const allowed = state.phase === 'compact' || state.phase === 'countdown';
+      document.body.classList.toggle('sub-on', cfg.show_sub_island === true && !!text && allowed);
       updateSubLayout();
     }
 
@@ -761,7 +848,7 @@
     }
 
     island.addEventListener('click', () => {
-      if (state.phase === 'alert' || state.phase === 'hidden' || state.phase === 'countdown') return;
+      if (state.phase !== 'compact') return;
       togglePanel();
     });
 
@@ -784,34 +871,10 @@
       api.setSetting('show_sub_island', false);
     });
 
-    panel.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-action]');
-      if (!btn) return;
-      const action = btn.dataset.action;
-      if (action === 'settings') api.openSettings();
-      else if (action === 'open') api.openMain();
-      else if (action === 'refresh') {
-        api.refresh();
-        loadData();
-        const weekLabel = currentSchedule() && currentSchedule().weekLabel;
-        document.getElementById('panelUpdated').textContent = '已刷新';
-        setTimeout(() => {
-          document.getElementById('panelUpdated').textContent = (weekLabel ? weekLabel + ' · ' : '') + '实时';
-        }, 1200);
-      }
-    });
-
-    panel.addEventListener('mouseenter', () => {
-      if (state.panelTimer) { clearTimeout(state.panelTimer); state.panelTimer = null; }
-    });
-
-    panel.addEventListener('mouseleave', schedulePanelClose);
-
     document.addEventListener('mousemove', (e) => {
       state.lastMouse = { x: e.clientX, y: e.clientY };
       const over = hitTest(e.clientX, e.clientY);
       setInteractive(over);
-      if (over && state.panelOpen && !state.panelTimer) schedulePanelClose();
     });
 
     document.addEventListener('mouseleave', () => {
