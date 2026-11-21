@@ -1,6 +1,6 @@
 {
     "name":  "class-service-manager",
-    "version": "3.8.0",
+    "version": "3.8.1",
     "description":  "班级服务管理系统 - Electron 桌面版",
     "main":  "main.js",
     "scripts":  {
