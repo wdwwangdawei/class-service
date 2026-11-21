@@ -2064,7 +2064,7 @@ window.app = {
 
   // ===== 风格切换 =====
   themePresets: {
-    default:  { name: '默认', bg: 'linear-gradient(135deg,#f7f8fa 0%,#eceff3 100%)', primary: '#0f6cbd', hover: '#115ea3', soft: '#ebf3fc', soft2: '#d7e8fa', bgSolid: '#f3f3f3', surface2: '#fafafa', preview: 'linear-gradient(135deg,#f5f7fa,#e4e9ef)' },
+    default:  { name: '默认', bg: 'linear-gradient(135deg,#f7f8fa 0%,#eceff3 100%)', primary: '#2457d6', hover: '#1b47b8', soft: '#eef2ff', soft2: '#dde6ff', bgSolid: '#f5f6f8', surface2: '#fbfbfc', preview: 'linear-gradient(135deg,#f5f7fa,#e4e9ef)' },
     mist:     { name: '晨雾蓝', bg: 'linear-gradient(135deg,#eef4ff 0%,#dbe7ff 100%)', primary: '#2563eb', hover: '#1e4fd8', soft: '#e9f0ff', soft2: '#d4e2ff', bgSolid: '#eef4ff', surface2: '#f7faff', preview: 'linear-gradient(135deg,#e8f0ff,#c9dcff)' },
     mint:     { name: '薄荷青', bg: 'linear-gradient(135deg,#effaf5 0%,#d5f0e3 100%)', primary: '#0f8a6c', hover: '#0b7157', soft: '#e4f7f0', soft2: '#c9eddd', bgSolid: '#eaf8f2', surface2: '#f5fcf9', preview: 'linear-gradient(135deg,#e5f8ef,#c4ead7)' },
     sunset:   { name: '暖阳橙', bg: 'linear-gradient(135deg,#fff7ed 0%,#ffe6c7 100%)', primary: '#d97706', hover: '#b45c05', soft: '#fff3e2', soft2: '#ffe4c2', bgSolid: '#fff6ea', surface2: '#fffbf4', preview: 'linear-gradient(135deg,#fff1df,#ffddb0)' },
@@ -2120,8 +2120,8 @@ window.app = {
     const r = document.documentElement.style;
     r.setProperty('--primary', th.primary);
     r.setProperty('--primary-hover', th.hover || th.primary);
-    r.setProperty('--primary-soft', th.soft || '#ebf3fc');
-    r.setProperty('--primary-soft-2', th.soft2 || '#d7e8fa');
+    r.setProperty('--primary-soft', th.soft || '#eef2ff');
+    r.setProperty('--primary-soft-2', th.soft2 || '#dde6ff');
     r.setProperty('--primary-color', th.primary);
     r.setProperty('--primary-light', th.hover || th.primary);
     r.setProperty('--accent', th.primary);
@@ -2133,7 +2133,7 @@ window.app = {
     const presets = this.themePresets || {};
     const first = (this.themeOrder && this.themeOrder[0]) || 'default';
     const key = presets[id] ? id : first;
-    const th = presets[key] || { name: '默认', bg: '#f3f3f3', primary: '#0f6cbd' };
+    const th = presets[key] || { name: '默认', bg: '#f5f6f8', primary: '#2457d6' };
     this.themeSkin = key;
     this.applyDisplayTheme();
     this.saveConfig();
@@ -3688,7 +3688,7 @@ window.app = {
       cancelBtn.onclick = function () { mask.remove(); resolve(null); };
       var okBtn = document.createElement('button');
       okBtn.textContent = '确定';
-      okBtn.style.cssText = 'padding:7px 18px;border:none;border-radius:6px;background:#0f6cbd;color:#fff;cursor:pointer;font-size:13px;';
+      okBtn.style.cssText = 'padding:7px 18px;border:none;border-radius:8px;background:#2457d6;color:#fff;cursor:pointer;font-size:13px;';
       okBtn.onclick = function () { mask.remove(); resolve(input.value); };
       btnRow.appendChild(cancelBtn);
       btnRow.appendChild(okBtn);

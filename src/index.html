@@ -243,7 +243,7 @@
                       <div class="status-row">
                         <div class="status-text">
                           <div class="status-name">当前版本</div>
-                          <div class="status-sub" id="home-version">v3.8.6</div>
+                          <div class="status-sub" id="home-version">v3.8.7</div>
                         </div>
                         <button class="pill pill-link" onclick="app.checkUpdateNow()">检查更新</button>
                       </div>
@@ -283,7 +283,7 @@
                   <span class="sb-sep">·</span>共 <span id="home-status-tables">0</span> 个表格
                   <span class="sb-sep">·</span><span id="home-status-students">0</span> 名学生
                 </div>
-                <div class="sb-right"><span id="home-status-version" class="version-info">v3.8.6</span></div>
+                <div class="sb-right"><span id="home-status-version" class="version-info">v3.8.7</span></div>
               </div>
             </div>
           </section>
@@ -745,7 +745,7 @@
                 </div>
                 <div class="about-info">
                   <div class="about-row"><span class="about-label">制作者</span><span>高二3班 王大玮</span></div>
-                  <div class="about-row"><span class="about-label">当前版本</span><span id="about-version">3.8.6</span></div>
+                  <div class="about-row"><span class="about-label">当前版本</span><span id="about-version">3.8.7</span></div>
                   <div class="about-copyright">版权由制作者所有<br>请勿侵权，侵权必究，拒绝盗版</div>
                 </div>
                 <div class="about-changelog-title">历史更新内容</div>
@@ -993,7 +993,7 @@
           <svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
         <h2>更新成功！</h2>
-        <p class="update-msg">已更新到 <span id="update-ver">v3.8.6</span></p>
+        <p class="update-msg">已更新到 <span id="update-ver">v3.8.7</span></p>
         <div class="update-changes" id="update-changes"></div>
         <p class="update-sub">感谢使用班级服务管理系统</p>
         <button class="btn btn-primary update-btn-glow" onclick="app.closeUpdateModal()">开始使用</button>
@@ -1008,9 +1008,9 @@
         </div>
         <h2>发现新版本</h2>
         <div class="version-compare">
-          <div class="ver-box ver-old"><span class="ver-label">当前</span><span class="ver-num">v<span id="remote-update-cur">3.8.6</span></span></div>
+          <div class="ver-box ver-old"><span class="ver-label">当前</span><span class="ver-num">v<span id="remote-update-cur">3.8.7</span></span></div>
           <div class="ver-arrow">→</div>
-          <div class="ver-box ver-new"><span class="ver-label">最新</span><span class="ver-num">v<span id="remote-update-ver">3.8.6</span></span></div>
+          <div class="ver-box ver-new"><span class="ver-label">最新</span><span class="ver-num">v<span id="remote-update-ver">3.8.7</span></span></div>
         </div>
         <p style="color:var(--text-3);font-size:13px;margin:14px 0 0;">是否立即下载并安装更新？</p>
         <div style="display:flex;gap:8px;margin-top:14px;">
@@ -1086,11 +1086,11 @@
   </div>
 
   <!-- 用户协议弹窗 -->
-  <div id="license-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:999999;align-items:center;justify-content:center;">
-    <div style="background:#fff;padding:24px 28px;border-radius:12px;width:560px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.25);">
-      <h2 style="margin:0 0 14px;color:#0f6cbd;text-align:center;">欢迎使用"班级服务管理系统"</h2>
-      <p style="margin:0 0 10px;color:#616161;font-size:13px;line-height:1.7;">在使用本软件前，请您仔细阅读以下条款：</p>
-      <div style="flex:1;overflow-y:auto;border:1px solid #e0e0e0;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.8;color:#3a3a3a;">
+  <div id="license-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(16,24,40,.42);backdrop-filter:blur(3px);z-index:999999;align-items:center;justify-content:center;">
+    <div style="background:#fff;padding:26px 30px;border-radius:16px;width:600px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(16,24,40,.22);border:1px solid #e8eaef;">
+      <h2 style="margin:0 0 14px;color:#17191e;font-size:18px;font-weight:600;letter-spacing:-.01em;text-align:center;">欢迎使用“班级服务管理系统”</h2>
+      <p style="margin:0 0 10px;color:#5b6270;font-size:13px;line-height:1.7;">在使用本软件前，请您仔细阅读以下条款：</p>
+      <div style="flex:1;overflow-y:auto;border:1px solid #e8eaef;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:13px;line-height:1.8;color:#3a3f4a;background:#fbfbfc;">
         <p style="margin:0 0 10px;"><b>1.</b> 本软件为免费软件，仅供个人学习、班级管理使用。</p>
         <p style="margin:0 0 10px;"><b>2.</b> 您承诺不将本软件用于任何非法或违反道德的活动。</p>
         <p style="margin:0 0 10px;"><b>3.</b> 本软件作者不对因使用本软件产生的任何数据丢失或损坏负责。</p>
